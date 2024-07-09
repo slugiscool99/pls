@@ -1,11 +1,10 @@
 class Ask < Formula
-  desc "A Go program called ask with terminal output logging"
-  homepage "https://example.com"
-  url "https://example.com/ask.tar.gz"
-  sha256 "your_tarball_sha256"
+  desc "Ask me anything"
+  homepage "https://github.com/slugiscool99/ask"
+  url "https://github.com/slugiscool99/ask"
+  sha256 "dab75b5a49687e891e22d3355464993d0b4b9bf946bc310dea37fc3a9d74fb67"
 
   depends_on "bash" # If you need bash for the wrapper script
-  depends_on "chroma"
 
   def install
     # Install the Go binary
@@ -17,6 +16,7 @@ class Ask < Formula
 
       LOG_FILE="$HOME/terminal_output.log"
       MAX_LOG_FILE_SIZE=$((10 * 1024 * 1024)) # 10 MB
+      MAX_LOG_LINES=10000
 
       rotate_log_file() {
         if [ -f "$LOG_FILE" ]; then
@@ -29,7 +29,18 @@ class Ask < Formula
         fi
       }
 
+      trim_log_file() {
+        if [ -f "$LOG_FILE" ]; then
+          line_count=$(wc -l < "$LOG_FILE")
+          if [ "$line_count" -gt "$MAX_LOG_LINES" ]; then
+            tail -n "$MAX_LOG_LINES" "$LOG_FILE" > "${LOG_FILE}.tmp"
+            mv "${LOG_FILE}.tmp" "$LOG_FILE"
+          fi
+        fi
+      }
+
       rotate_log_file
+      trim_log_file
       "#{bin}/ask" "$@" &> >(tee -a "$LOG_FILE")
     EOS
     bin.install "ask_wrapper"

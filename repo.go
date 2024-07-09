@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"time"
 
@@ -135,12 +136,21 @@ func isChromaRunning(port string) bool {
 	return true
 }
 
+func installChromaDB() error {
+	cmd := exec.Command("pip", "install", "chromadb")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 func startChroma() error {
-	cmd := exec.Command("chroma", "--config", "/path/to/config.yaml")
+	cmd := exec.Command("chroma", "run", "--host", "localhost", "--port", "8000", "--path", "./my_chroma_data")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	err := cmd.Start()
 	if err != nil {
 		return fmt.Errorf("error starting Chroma: %v", err)
 	}
-	time.Sleep(2 * time.Second) // Give Chroma some time to start
+	time.Sleep(5 * time.Second) // Give Chroma some time to start
 	return nil
 }

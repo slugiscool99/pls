@@ -31,6 +31,7 @@ var rootCmd = &cobra.Command{
 			// Get the last terminal output and suggest a fix
 			// go showProgressWheel()
 			// time.Sleep(10 * time.Second)
+			suggestFix()
 			color.Yellow("Not implemented yet")
 		} else if action == "cmd" {
 			// Output ONLY a list of shell commands that complete the task
@@ -50,8 +51,7 @@ var rootCmd = &cobra.Command{
 			// Either use the LSP for this or get AI to search the vectordb for it...
 			color.Yellow("Not implemented yet")
 		} else if action == "repo" {
-			runTest()
-			color.Yellow("Done")
+			color.Yellow("Not implemented yet")
 		} else if action == "trace" {
 			color.Yellow("Not implemented yet")
 		} else if action == "refresh" {
