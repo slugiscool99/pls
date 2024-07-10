@@ -1,156 +1,111 @@
 package main
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
-	"time"
-
-	chroma "github.com/amikos-tech/chroma-go"
-	"github.com/amikos-tech/chroma-go/collection"
-	"github.com/amikos-tech/chroma-go/openai"
-	"github.com/amikos-tech/chroma-go/types"
+	"strings"
 )
 
-func runTest() {
-	openaiEf, err := initOpenAIEmbeddingFunction()
+func runSanityCheck() error {
+	editedFiles, err := getEditedFiles()
 	if err != nil {
-		fmt.Printf("error initializing OpenAI embedding function: %v", err)
-		return
+		return err
 	}
-
-	client := createChromaClient()
-	if client == nil {
-		fmt.Println("error creating client")
-		return
+	editedFilesString := ""
+	for filePath, fileContent := range editedFiles {
+		editedFilesString += filePath + ":\n" + fileContent + "\n\n"
 	}
-
-	newCollection, err := createOrGetCollection(client, "test_collection", openaiEf)
+	response, err := getProblems(editedFilesString)
 	if err != nil {
-		fmt.Printf("error creating collection: %v", err)
-		return
+		return err
 	}
-
-	err = createAndInsertRecords(newCollection, openaiEf)
-	if err != nil {
-		fmt.Printf("error creating and inserting records: %v", err)
-		return
-	}
-
-	err = queryCollection(newCollection)
-	if err != nil {
-		fmt.Printf("error querying collection: %v", err)
-		return
-	}
-}
-
-func initOpenAIEmbeddingFunction() (*openai.OpenAIEmbeddingFunction, error) {
-	apiKey := apiKey()
-	if apiKey == "" {
-		return nil, fmt.Errorf("no key found")
-	}
-	openaiEf, err := openai.NewOpenAIEmbeddingFunction(apiKey)
-	if err != nil {
-		return nil, fmt.Errorf("error creating OpenAI embedding function: %v", err)
-	}
-	return openaiEf, nil
-}
-
-func createChromaClient() *chroma.Client {
-	client, err := chroma.NewClient("http://localhost:53829")
-	if err != nil {
-		fmt.Printf("error creating client: %v", err)
+	if response == nil {
+		fmt.Println("No problems found in your staged changes")
 		return nil
 	}
-	return client
+	return runFixer(*response)
 }
 
-func createOrGetCollection(client *chroma.Client, collectionName string, openaiEf *openai.OpenAIEmbeddingFunction) (*chroma.Collection, error) {
-	c, err := client.GetCollection(context.TODO(), collectionName, openaiEf)
-	if err == nil {
-		return c, nil
+func runFixer(problems []string) error {
+	for index, problem := range problems {
+		count := string(index + 1)
+		fmt.Println(count + " / " + string(len(problems)))
+		fmt.Println(problem)
+
+		fmt.Println("fix - edits your code")
+		fmt.Println("ask <question> - ask a follow up about this")
+		fmt.Println("return - skip")
+
+		var response string
+		_, err := fmt.Scanln(&response)
+		if err != nil {
+			return err
+		}
+		if strings.ToLower(response) == "fix" {
+			// Apply the fix
+			// Commit the fix with the explaination
+		}
+		if strings.HasPrefix(strings.ToLower(response), "ask ") {
+			// Ask a follow-up question
+		}
 	}
-
-	newCollection, err := client.NewCollection(
-		context.TODO(),
-		collection.WithName(collectionName),
-		collection.WithMetadata("key1", "value1"),
-		collection.WithEmbeddingFunction(openaiEf),
-		collection.WithHNSWDistanceFunction(types.L2),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("error creating collection: %v", err)
-	}
-	return newCollection, nil
-}
-
-func createAndInsertRecords(newCollection *chroma.Collection, openaiEf *openai.OpenAIEmbeddingFunction) error {
-	rs, err := types.NewRecordSet(
-		types.WithEmbeddingFunction(openaiEf),
-		types.WithIDGenerator(types.NewULIDGenerator()),
-	)
-	if err != nil {
-		return fmt.Errorf("error creating record set: %v", err)
-	}
-
-	rs.WithRecord(types.WithDocument("My name is John. And I have two dogs."), types.WithMetadata("key1", "value1"))
-	rs.WithRecord(types.WithDocument("My name is Jane. I am a data scientist."), types.WithMetadata("key2", "value2"))
-
-	_, err = rs.BuildAndValidate(context.TODO())
-	if err != nil {
-		return fmt.Errorf("error validating record set: %v", err)
-	}
-
-	_, err = newCollection.AddRecords(context.Background(), rs)
-	if err != nil {
-		return fmt.Errorf("error adding documents: %v", err)
-	}
-
+	fmt.Println("Do you want to merge these changes into a single commit? (y/N)")
 	return nil
 }
 
-func queryCollection(newCollection *chroma.Collection) error {
-	countDocs, err := newCollection.Count(context.TODO())
+func getProblems(content string) (*[]string, error) {
+	cwd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("error counting documents: %v", err)
+		cwd = "repo root"
 	}
-	fmt.Printf("countDocs: %v\n", countDocs) // this should result in 2
+	systemPrompt := "You will be provided files that have changed since the user's last commit. carefully analyze each one and look for possible bugs. take note of the larger context and request diffs or other files with your tools. " +
+		"\nIf there are no problems, return an empty array. If there are, respond with an array in the following format [{'filePath': 'path/file.ext', 'explaination': '<1 sentance problem recap>', 'suggestion': '<concise explaination on how to fix without code>'}]. Do not output any other text. Your current working directory is: " + cwd
+	userPrompt := content
+	response := sendWithFunctions(&systemPrompt, &userPrompt, nil)
 
-	qr, err := newCollection.Query(context.TODO(), []string{"I love dogs"}, 5, nil, nil, nil)
+	var problems []string
+	err = json.Unmarshal([]byte(response), &problems)
 	if err != nil {
-		return fmt.Errorf("error querying documents: %v", err)
+		return nil, err
 	}
-	fmt.Printf("qr: %v\n", qr.Documents[0][0]) // this should result in the document about dogs
-
-	return nil
+	return &problems, nil
 }
 
-func isChromaRunning(port string) bool {
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort("localhost", port), 1*time.Second)
+func getDiff() (string, error) {
+	cmd := exec.Command("git", "diff")
+	output, err := cmd.Output()
 	if err != nil {
-		return false
+		return "", err
 	}
-	conn.Close()
-	return true
+	return string(output), nil
 }
 
-func installChromaDB() error {
-	cmd := exec.Command("pip", "install", "chromadb")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
+func getEditedFiles() (map[string]string, error) {
+	editedFiles := make(map[string]string)
 
-func startChroma() error {
-	cmd := exec.Command("chroma", "run", "--host", "localhost", "--port", "8000", "--path", "./my_chroma_data")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Start()
+	// Execute git diff command to get the list of edited files
+	cmd := exec.Command("git", "diff", "--name-only")
+	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("error starting Chroma: %v", err)
+		return nil, err
 	}
-	time.Sleep(5 * time.Second) // Give Chroma some time to start
-	return nil
+
+	// Split the output by lines to get individual file paths
+	filePaths := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	// Retrieve the content of each edited file
+	for _, filePath := range filePaths {
+		if filePath != "" {
+			cmd := exec.Command("git", "show", "HEAD:"+filePath)
+			content, err := cmd.Output()
+			if err != nil {
+				return nil, err
+			}
+			editedFiles[filePath] = string(content)
+		}
+	}
+
+	return editedFiles, nil
 }
