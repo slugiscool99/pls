@@ -28,25 +28,44 @@ type ChatCompletionRequest struct {
 
 const groqKey = "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"
 
-func checkError(errorMessage string) string {
-	systemPrompt := "You are an expert at diagnosing errors. The error is provided by the user, along with potentially relevant files. Try to analyze the error and provide a solution. If you aren't confident, answer with NOCONFIDENCE. If you need more information, ask for it."
-	userPrompt := errorMessage
-	return makeQuery(systemPrompt, userPrompt)
+func checkQueryType(query string) string {
+	systemPrompt := "You are an input categorizer. Figure out if the user's prompt is an ERROR (question about a bug, an error message or stacktrace), SHELL_TASK (a prompt that can be answered only with shell commands), CODE_QUESTION (a question that can be answered with code), FILE_QUESTION (a question about a file in the project), PROJECT_QUESTION (a question about the project codebase), OTHER_QUESTION (another question you can answer), or UNKNOWN (you can't categorize). Do not output ANY text except the one word category."
+	userPrompt := query
+	return makeQuery(systemPrompt, userPrompt, false)
 }
 
-func askQuestion(question string) string {
-	systemPrompt := "You are answering a question from within a shell window. Be as concise as possible. If you need more information, ask for it. If the answer is code or a command, do not output any other text like intros."
+func checkIntent(query string) string {
+	systemPrompt := "You are an intent classifier. Make a judgement if the output is likely to be a SNIPPET (a few lines of code or commands, copy/pasteable), CODE_UPDATES (one or more project files undergo sizable edits), ANSWER (an explaination or information), or UNKNOWN (you can't categorize). Do not output ANY text except the one word category."
+	userPrompt := query
+	return makeQuery(systemPrompt, userPrompt, false)
+}
+
+func checkError(errorMessage string) string {
+	systemPrompt := "You are an expert at diagnosing errors. The error is provided by the user, along with potentially relevant files. Try to analyze the error and provide a solution. If you aren't confident, don't answer. If you need more information, ask for it."
+	userPrompt := errorMessage
+	return makeQuery(systemPrompt, userPrompt, true)
+}
+
+func askQuestion(question string, qType string) string {
+	systemPrompt := "Answer the question"
+	if qType == "code" {
+		systemPrompt = "You are an expert at writing code from a user's instructions. Output ONLY code that can be pasted directly into a code editor. Minimize surrounding code and comments, focus only on returning the most relevant part. Don't use markdown (plaintext only)."
+	} else if qType == "other" {
+		systemPrompt = "You are answering a question from within a shell window. Be as concise as possible. Don't use markdown (plaintext only). If you need more information, ask for it."
+	} else if qType == "project" {
+		//Get from vectordb
+	}
 	userPrompt := question
-	return makeQuery(systemPrompt, userPrompt)
+	return makeQuery(systemPrompt, userPrompt, true)
 }
 
 func createShellCommand(task string) string {
 	systemPrompt := "You are an expert at writing shell commands from a user's instructions. Output ONLY line separated commands that can be pasted directly into a terminal."
 	userPrompt := task
-	return makeQuery(systemPrompt, userPrompt)
+	return makeQuery(systemPrompt, userPrompt, true)
 }
 
-func makeQuery(systemPrompt string, userPrompt string) string {
+func makeQuery(systemPrompt string, userPrompt string, print bool) string {
 	messages := []Message{
 		{
 			Role:    "system",
@@ -60,7 +79,7 @@ func makeQuery(systemPrompt string, userPrompt string) string {
 
 	requestBody := ChatCompletionRequest{
 		Messages:    messages,
-		Model:       "llama3-8b-8192",
+		Model:       "llama3-70b-8192",
 		Temperature: 1,
 		MaxTokens:   1024,
 		TopP:        1,
@@ -91,7 +110,9 @@ func makeQuery(systemPrompt string, userPrompt string) string {
 	}
 	defer resp.Body.Close()
 
-	fmt.Println("")
+	if print {
+		fmt.Println("")
+	}
 
 	var accumulatedText string
 	terminalWidth := getTerminalWidth() - 40
@@ -117,8 +138,10 @@ func makeQuery(systemPrompt string, userPrompt string) string {
 						if strings.Contains(accumulatedText, "\n\n") {
 							paragraphs := strings.Split(accumulatedText, "\n\n")
 							for i := 0; i < len(paragraphs)-1; i++ {
-								fmt.Println(wrapText(paragraphs[i], terminalWidth))
-								fmt.Println() // Add an empty line between paragraphs
+								if print {
+									fmt.Println(wrapText(paragraphs[i], terminalWidth))
+									fmt.Println() // Add an empty line between paragraphs
+								}
 							}
 							accumulatedText = paragraphs[len(paragraphs)-1]
 						}
@@ -128,13 +151,14 @@ func makeQuery(systemPrompt string, userPrompt string) string {
 		}
 	}
 
-	if accumulatedText != "" {
+	if accumulatedText != "" && print {
 		fmt.Print(wrapText(accumulatedText, terminalWidth))
 	}
 
-	fmt.Println("")
-	fmt.Println("")
-
+	if print {
+		fmt.Println("")
+		fmt.Println("")
+	}
 	if err := scanner.Err(); err != nil {
 		fmt.Println("Error reading response body:", err)
 	}
