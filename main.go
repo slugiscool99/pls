@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -26,9 +25,17 @@ var rootCmd = &cobra.Command{
 		}
 
 		action := args[0]
-		query := strings.Join(args[0:], " ")
+		query := strings.Join(args[1:], " ")
 
-		if action == "login" {
+		if action == "get" {
+			parseGetQuery(query)
+		} else if action == "fix" {
+			parseFixQuery(query)
+		} else if action == "docs" {
+			parseDocQuery(args[1], "functions")
+		} else if action == "comments" {
+			parseDocQuery(args[1], "all")
+		} else if action == "login" {
 			addApiKey()
 		} else if action == "logout" {
 			removeApiKey()
@@ -38,20 +45,29 @@ var rootCmd = &cobra.Command{
 			printHelp()
 		} else if action == "it" {
 			runSavedCommand()
-		} else if action == "a" {
-			askFollowUp()
 		} else if action == "clear" {
 			deleteSavedFiles()
 		} else {
-			parseQuery(query)
+			parseGetQuery(query)
 		}
 	},
 }
 
-func parseQuery(query string) {
+func parseFixQuery(query string) {
+}
 
+func parseDocQuery(filePath string, docType string) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Error getting file:", err)
+		return
+	}
+	filePath = filepath.Join(cwd, filePath)
+	addFunctionDocs(filePath, docType)
+}
+
+func parseGetQuery(query string) {
 	queryType := checkQueryType(query)
-	// intent := checkIntent(query)
 
 	// Follow up logic
 	lastQueryType, lastSeenString := getLastCommand()
@@ -63,28 +79,37 @@ func parseQuery(query string) {
 			lastSeen = time.Now().Add(-10 * time.Minute)
 		}
 		if queryType == lastQueryType { // Same type of query
-			if time.Now().Sub(lastSeen) < 12*time.Hour { // It's been longer than 1 minute
+			if time.Since(lastSeen) < 12*time.Hour { // It's been less than than 12 hours
 				askFollowUp(query)
 				return
 			}
 		}
 	}
 
-	if queryType == "ERROR" {
+	if queryType == "ERROR_QUESTION" {
+		//Requires VDB to find relevant code
 		response := checkError(query)
 		saveResponse(response, "last.err")
 	} else if queryType == "CODE_QUESTION" {
+		//Done
 		response := askQuestion(query, "code")
 		saveResponse(response, "last.q")
 	} else if queryType == "FILE_QUESTION" {
+		// Requires getting the file
 		response := askQuestion(query, "file")
 		saveResponse(response, "last.q")
 	} else if queryType == "OTHER_QUESTION" {
+		// Done
 		response := askQuestion(query, "other")
 		saveResponse(response, "last.q")
 	} else if queryType == "PROJECT_QUESTION" {
-		color.Yellow("Not yet supported")
+		// Requires VDB to find relevant code
+		response := askQuestion(query, "project")
+		saveResponse(response, "last.q")
+	} else if queryType == "FOLLOW_UP" {
+		askFollowUp(query)
 	} else if queryType == "SHELL_TASK" {
+		// Done
 		if strings.TrimSpace(query) == "" {
 			printSavedCommand()
 			return
@@ -98,7 +123,6 @@ func parseQuery(query string) {
 }
 
 func askFollowUp(query string) {
-	timeNow
 
 	//follow up
 }
@@ -212,6 +236,26 @@ func confirmRunAfterOneMinute(filePath string, prompt string) {
 		}
 	}
 	_ = os.WriteFile(filePath, []byte(timeNow), 0644)
+}
+
+func addFunctionDocs(filePath string, docType string) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		fmt.Println("Couldn't find the command to run", err)
+		return
+	}
+	newContent := ""
+	if docType == "functions" {
+		newContent = returnWithDocs(string(content))
+	} else {
+		newContent = returnWithComments(string(content))
+	}
+	if newContent != "" {
+		err = os.WriteFile(filePath, []byte(newContent), 0644)
+		if err != nil {
+			fmt.Println("Error saving new file.", err)
+		}
+	}
 }
 
 func main() {

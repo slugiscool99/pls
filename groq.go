@@ -29,7 +29,7 @@ type ChatCompletionRequest struct {
 const groqKey = "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"
 
 func checkQueryType(query string) string {
-	systemPrompt := "You are an input categorizer. Figure out if the user's prompt is an ERROR (question about a bug, an error message or stacktrace), SHELL_TASK (a prompt that can be answered only with shell commands), CODE_QUESTION (a question that can be answered with code), FILE_QUESTION (a question about a file in the project), PROJECT_QUESTION (a question about the project codebase), OTHER_QUESTION (another question you can answer), or UNKNOWN (you can't categorize). Do not output ANY text except the one word category."
+	systemPrompt := "You are an input categorizer. Figure out if the user's prompt is an ERROR_QUESTION (question about a bug, an error message or stacktrace), SHELL_TASK (a prompt that can be answered only with shell commands), CODE_QUESTION (a question that can be answered with code), FILE_QUESTION (a question about a file in the project), PROJECT_QUESTION (a question about the project codebase), OTHER_QUESTION (another question you can answer), FOLLOW_UP (likely referring to previous context in the conversation), or UNKNOWN (you can't categorize). Do not output ANY text except the one word category."
 	userPrompt := query
 	return makeQuery(systemPrompt, userPrompt, false)
 }
@@ -41,7 +41,7 @@ func checkIntent(query string) string {
 }
 
 func checkError(errorMessage string) string {
-	systemPrompt := "You are an expert at diagnosing errors. The error is provided by the user, along with potentially relevant files. Try to analyze the error and provide a solution. If you aren't confident, don't answer. If you need more information, ask for it."
+	systemPrompt := "You are an expert at diagnosing errors. The error is provided by the user, along with potentially relevant files. Analyze and explain the error. Be concise, a 1 sentance explaination, a 1 sentance suggested fix, and filename/line numbers if you have them. If you need more information, ask for it."
 	userPrompt := errorMessage
 	return makeQuery(systemPrompt, userPrompt, true)
 }
@@ -54,8 +54,22 @@ func askQuestion(question string, qType string) string {
 		systemPrompt = "You are answering a question from within a shell window. Be as concise as possible. Don't use markdown (plaintext only). If you need more information, ask for it."
 	} else if qType == "project" {
 		//Get from vectordb
+	} else if qType == "file" {
+		// Figure out what file it is and get the file
 	}
 	userPrompt := question
+	return makeQuery(systemPrompt, userPrompt, true)
+}
+
+func returnWithDocs(content string) string {
+	systemPrompt := "You are an expert at writing documentation. The user has provided a full file. Add commented documentation only above functions or classes in the code. Document a summary, the parameters, and return values. Return only the FULL file with the added docs. Do not skip or abbreviate any part of the file. Do not output any other text. Do not use markdown in your output"
+	userPrompt := content
+	return makeQuery(systemPrompt, userPrompt, true)
+}
+
+func returnWithComments(content string) string {
+	systemPrompt := "You are an expert at writing documentation. The user has provided a full file. Add comments throughout the code explaining each section. Return only the FULL file with the added comments. Do not output any other text. Do not use markdown."
+	userPrompt := content
 	return makeQuery(systemPrompt, userPrompt, true)
 }
 

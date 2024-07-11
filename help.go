@@ -11,12 +11,20 @@ func printHelp() {
 	fmt.Println("")
 	printWelcome()
 	fmt.Println("")
-	fmt.Println("\033[1mpls \033[34m'anything'\033[0m\033[0m\x1b[3m Try pasting error messages, asking questions, or generating commands\x1b[0m")
-	fmt.Println("\033[1mpls fix \033[34m'instructions or errors'\033[0m\033[0m\x1b[3m Fix problems\x1b[0m")
-	fmt.Println("\033[1mpls check\033[0m\x1b[3m Checks your current commit (run this after you commit, but before you push)\x1b[0m")
+	fmt.Println("\033[1mpls get \033[34m'question'\033[0m\033[0m\x1b[3m Generate code snippets or terminal commands\x1b[0m")
+	fmt.Println("\033[1mpls fix \033[34m'instructions or errors'\033[0m\033[0m\x1b[3m Fix problems in your repo (will edit files)\x1b[0m")
+	fmt.Println("\033[1mpls docs\033[0m or\033[1m comments \033[34m'path/to/file.ext'\033[0m\033[0m\x1b[3m Add docs (commments above functions only) or comments (explainations throughout file) \x1b[0m")
+	fmt.Println("\033[1mpls check\033[0m\x1b[3m Checks your current commit for issues (run after git commit, before git push)\x1b[0m")
 	fmt.Println("")
 	fmt.Println("\033[1mpls login\033[0m or\033[1m logout\033[0m\x1b[3m \x1b[0m")
 	fmt.Println("")
+	// fmt.Println("Available soon:")
+	// fmt.Println("")
+	// fmt.Println("\033[1mdo repo \033[34myour question\033[0m\x1b[3m do a question about your entire codebase\x1b[0m")
+	// fmt.Println("\033[1mdo test \033[34m<input_file> <output_test_file>\033[0m\x1b[3m generate tests for a file\x1b[0m")
+	// fmt.Println("\033[1mdo trace \033[34mfirestore|sql|<url>\033[0m\x1b[3m find code that interacts with a resource\x1b[0m")
+	// fmt.Println("\033[1mdo z\033[0m\x1b[3m undo command\x1b[0m")
+	// fmt.Println("\033[1mdo y\033[0m\x1b[3m redo command\x1b[0m")
 }
 
 func printWelcome() {
