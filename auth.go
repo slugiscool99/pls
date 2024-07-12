@@ -9,6 +9,10 @@ import (
 	"github.com/fatih/color"
 )
 
+func openaiApiKey() string {
+	return "sk-proj-RUJUkpiglNmwtBoBfFytT3BlbkFJM94IYK15QmRJQpGOfVCq"
+}
+
 func apiKey() string {
 	out, err := exec.Command("security", "find-generic-password", "-s", "pls_cli_auth", "-a", "user", "-w").Output()
 	if err != nil {

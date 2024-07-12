@@ -27,20 +27,18 @@ var rootCmd = &cobra.Command{
 		action := args[0]
 		query := strings.Join(args[1:], " ")
 
-		if action == "get" {
-			parseGetQuery(query)
-		} else if action == "fix" {
-			parseFixQuery(query)
-		} else if action == "docs" {
-			parseDocQuery(args[1], "functions")
-		} else if action == "comments" {
-			parseDocQuery(args[1], "all")
+		if action == "explain" {
+			explainRepo(query)
+		} else if action == "update" {
+			updateCode(query)
+		} else if action == "check" {
+			runSanityCheck()
+		} else if action == "test" {
+			setupChroma()
 		} else if action == "login" {
 			addApiKey()
 		} else if action == "logout" {
 			removeApiKey()
-		} else if action == "check" {
-			runSanityCheck()
 		} else if action == "help" {
 			printHelp()
 		} else if action == "it" {
@@ -48,12 +46,15 @@ var rootCmd = &cobra.Command{
 		} else if action == "clear" {
 			deleteSavedFiles()
 		} else {
-			parseGetQuery(query)
+			explainRepo(query)
 		}
 	},
 }
 
-func parseFixQuery(query string) {
+func explainRepo(query string) {
+}
+
+func updateCode(query string) {
 }
 
 func parseDocQuery(filePath string, docType string) {
@@ -66,65 +67,8 @@ func parseDocQuery(filePath string, docType string) {
 	addFunctionDocs(filePath, docType)
 }
 
-func parseGetQuery(query string) {
-	queryType := checkQueryType(query)
-
-	// Follow up logic
-	lastQueryType, lastSeenString := getLastCommand()
-	saveLastCommand(queryType)
-
-	if lastQueryType != "" && lastSeenString != "" {
-		lastSeen, err := time.Parse(time.RFC3339, lastSeenString)
-		if err != nil {
-			lastSeen = time.Now().Add(-10 * time.Minute)
-		}
-		if queryType == lastQueryType { // Same type of query
-			if time.Since(lastSeen) < 12*time.Hour { // It's been less than than 12 hours
-				askFollowUp(query)
-				return
-			}
-		}
-	}
-
-	if queryType == "ERROR_QUESTION" {
-		//Requires VDB to find relevant code
-		response := checkError(query)
-		saveResponse(response, "last.err")
-	} else if queryType == "CODE_QUESTION" {
-		//Done
-		response := askQuestion(query, "code")
-		saveResponse(response, "last.q")
-	} else if queryType == "FILE_QUESTION" {
-		// Requires getting the file
-		response := askQuestion(query, "file")
-		saveResponse(response, "last.q")
-	} else if queryType == "OTHER_QUESTION" {
-		// Done
-		response := askQuestion(query, "other")
-		saveResponse(response, "last.q")
-	} else if queryType == "PROJECT_QUESTION" {
-		// Requires VDB to find relevant code
-		response := askQuestion(query, "project")
-		saveResponse(response, "last.q")
-	} else if queryType == "FOLLOW_UP" {
-		askFollowUp(query)
-	} else if queryType == "SHELL_TASK" {
-		// Done
-		if strings.TrimSpace(query) == "" {
-			printSavedCommand()
-			return
-		}
-		response := createShellCommand(query)
-		saveResponse(response, "last.sh")
-	} else {
-		fmt.Println("I'm not sure what you're asking. Try pasting an error message, asking a question, or generating a command.")
-	}
-
-}
-
 func askFollowUp(query string) {
-
-	//follow up
+	fmt.Println("Followup")
 }
 
 func deleteSavedFiles() {
