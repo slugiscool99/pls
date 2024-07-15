@@ -25,6 +25,7 @@ import (
 
 func setupChroma() {
 	startServer()
+	// processRepo()
 
 	repoName, err := getRepoName()
 	if err != nil {
@@ -111,6 +112,13 @@ func createOrGetCollection(client *chroma.Client, collectionName string, openaiE
 	return newCollection, nil
 }
 
+// We can't put super long files in embeddings so we should split them up
+// We should write docs for every function in comments
+// and store them in separate documents with a reference to their filename
+
+// The full file should be passed to the llm
+
+// Regenerate a given file's documents when it changes
 func createAndInsertRecords(newCollection *chroma.Collection, openaiEf *openai.OpenAIEmbeddingFunction) error {
 	rs, err := types.NewRecordSet(
 		types.WithEmbeddingFunction(openaiEf),

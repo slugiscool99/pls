@@ -980,3 +980,16 @@ INFO:     [11-07-2024 23:41:52] Started server process [16334]
 INFO:     [11-07-2024 23:41:52] Waiting for application startup.
 INFO:     [11-07-2024 23:41:52] Application startup complete.
 INFO:     [11-07-2024 23:41:52] Uvicorn running on http://localhost:8000 (Press CTRL+C to quit)
+WARNING:  [12-07-2024 17:20:54] chroma_server_nofile is set to 65535, but this is less than current soft limit of 1048575. chroma_server_nofile will not be set.
+INFO:     [12-07-2024 17:20:54] Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+DEBUG:    [12-07-2024 17:20:54] Starting component System
+DEBUG:    [12-07-2024 17:20:54] Starting component OpenTelemetryClient
+DEBUG:    [12-07-2024 17:20:54] Starting component SqliteDB
+DEBUG:    [12-07-2024 17:20:54] Starting component QuotaEnforcer
+DEBUG:    [12-07-2024 17:20:54] Starting component Posthog
+DEBUG:    [12-07-2024 17:20:54] Starting component LocalSegmentManager
+DEBUG:    [12-07-2024 17:20:54] Starting component SegmentAPI
+INFO:     [12-07-2024 17:20:54] Started server process [25909]
+INFO:     [12-07-2024 17:20:54] Waiting for application startup.
+INFO:     [12-07-2024 17:20:54] Application startup complete.
+INFO:     [12-07-2024 17:20:54] Uvicorn running on http://localhost:8000 (Press CTRL+C to quit)

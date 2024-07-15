@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/common-nighthawk/go-figure"
 	"github.com/fatih/color"
@@ -11,22 +13,45 @@ func printHelp() {
 	fmt.Println("")
 	printWelcome()
 	fmt.Println("")
-	// fmt.Println("\033[1mpls get \033[34m'question'\033[0m\033[0m\x1b[3m Generate code snippets or terminal commands\x1b[0m")
-	// fmt.Println("\033[1mpls fix \033[34m'instructions or errors'\033[0m\033[0m\x1b[3m Fix problems in your repo (will edit files)\x1b[0m")
-	// fmt.Println("\033[1mpls docs\033[0m or\033[1m comments \033[34m'path/to/file.ext'\033[0m\033[0m\x1b[3m Add docs (commments above functions only) or comments (explainations throughout file) \x1b[0m")
-	fmt.Println("\033[1mpls explain \033[34m'question'\033[0m\033[0m\x1b[3m Answers a question about your repo\x1b[0m")
-	fmt.Println("\033[1mpls update \033[32mpath/to/file.ext \033[34m'instructions'\033[0m\033[0m\x1b[3m Updates a file, using related code as context\x1b[0m")
-	fmt.Println("\033[1mpls check\033[0m\x1b[3m Checks your current commit for issues (run after git commit, before git push)\x1b[0m")
+	printFormattedColumns()
 	fmt.Println("")
-	fmt.Println("\033[1mpls login\033[0m or\033[1m logout\033[0m\x1b[3m \x1b[0m")
-	fmt.Println("")
-	// fmt.Println("Available soon:")
-	// fmt.Println("")
-	// fmt.Println("\033[1mdo repo \033[34myour question\033[0m\x1b[3m do a question about your entire codebase\x1b[0m")
-	// fmt.Println("\033[1mdo test \033[34m<input_file> <output_test_file>\033[0m\x1b[3m generate tests for a file\x1b[0m")
-	// fmt.Println("\033[1mdo trace \033[34mfirestore|sql|<url>\033[0m\x1b[3m find code that interacts with a resource\x1b[0m")
-	// fmt.Println("\033[1mdo z\033[0m\x1b[3m undo command\x1b[0m")
-	// fmt.Println("\033[1mdo y\033[0m\x1b[3m redo command\x1b[0m")
+}
+func printFormattedColumns() {
+	options := []struct {
+		Option      string
+		Description string
+	}{
+		{"pls \033[1mcmd\033[0m \033[34m'description'\033[0m", "Writes shell commands"},
+		{"pls \033[1mfix\033[0m \033[34m'error'\033[0m", "Fixes terminal errors"},
+		{"pls \033[1mecho\033[0m \033[34m'question'\033[0m", "Answers a question"},
+		// {"pls \033[1mcode\033[0m \033[34m'prompt'\033[0m", "Writes code snippets"},
+		// {"pls \033[1mexplain\033[0m \033[34m'question'\033[0m", "Answers a question about your repo"},
+		// {"\033[1mfind\033[0m \033[34m'error message'\033[0m", "Helps diagnose errors"},
+		// {"\033[1mupdate\033[0m \033[32mpath/file.ext \033[34m'instructions'\033[0m", "Updates a file, using related code as context"},
+		// {"pls \033[1mcheck\033[0m", "Checks your current commit for issues (run after git commit, before git push)"},
+		// {"pls \033[1mrefresh\033[0m", "Fixes "},
+	}
+
+	// Determine the maximum length of the option strings for alignment
+	maxOptionLen := 0
+	for _, opt := range options {
+		plainOption := stripANSI(opt.Option)
+		if len(plainOption) > maxOptionLen {
+			maxOptionLen = len(plainOption)
+		}
+	}
+
+	spaceFromStart := maxOptionLen + 3
+
+	for _, opt := range options {
+		space := strings.Repeat(" ", spaceFromStart-len(stripANSI(opt.Option)))
+		fmt.Printf("%s%s%s\n", opt.Option, space, opt.Description)
+	}
+}
+
+func stripANSI(input string) string {
+	re := regexp.MustCompile(`\033\[[0-9;]*m`)
+	return re.ReplaceAllString(input, "")
 }
 
 func printWelcome() {
