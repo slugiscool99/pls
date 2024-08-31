@@ -26,7 +26,8 @@ type ChatCompletionRequest struct {
 	Stop        *string   `json:"stop"`
 }
 
-const groqKey = "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"
+// const groqKey = "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"
+// const groqKey = apiKey()
 
 // pls cmd
 func createShellCommand(task string, print bool) string {
@@ -35,25 +36,29 @@ func createShellCommand(task string, print bool) string {
 	return makeQuery(systemPrompt, userPrompt, print)
 }
 
+//pls explain
 func explainEachLine(content string, prompt string) string {
 	systemPrompt := "You are an expert at explaining shell commands, code, regex, and other programming syntax. "
 	if prompt == "" {
-		systemPrompt += "The user has provided an input, explain what each line does in no more than 1 sentence. Output {line}: {your explaination} for each line. Do not output any other text."
+		systemPrompt += "The user will provide an input, explain what each line does in no more than 1 sentence. Output {line}: {your explaination} for each line. Do not output any other text."
 	} else {
-		systemPrompt += "The user has provided an input. Answer the following about the code: " + prompt
+		systemPrompt += "The user will provide an input. Concisely answer the following about it: " + prompt
 	}
 	userPrompt := content
 	return makeQuery(systemPrompt, userPrompt, true)
 }
 
 // pls code
-func answerQuestion(question string, lang string) string {
-	language := ""
-	if lang != "" {
-		language += "Unless specified otherwise, use " + lang + " syntax."
-	}
-	systemPrompt := "Answer the question as concisely as possible, without markdown. If the user is asking for code, output ONLY code. " + language
+func answerQuestion(question string) string {
+	systemPrompt := "Answer the question as concisely as possible, without markdown. If the user is asking for code, output ONLY code."
 	userPrompt := question
+	return makeQuery(systemPrompt, userPrompt, true)
+}
+
+//pls check
+func analyzeDiff(diff string) string {
+	systemPrompt := "You are an expert at analyzing git diffs for issues. Output any issues found in the diff. If no issues are found, output 'No issues found'."
+	userPrompt := diff
 	return makeQuery(systemPrompt, userPrompt, true)
 }
 
@@ -92,7 +97,7 @@ func makeQuery(systemPrompt string, userPrompt string, print bool) string {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+groqKey)
+	req.Header.Set("Authorization", "Bearer "+apiKey())
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -155,6 +160,7 @@ func makeQuery(systemPrompt string, userPrompt string, print bool) string {
 		fmt.Println("Error reading response body:", err)
 	}
 
+	accumulatedText = strings.ReplaceAll(accumulatedText, "`", "")
 	return accumulatedText
 }
 
@@ -193,5 +199,8 @@ func wrapText(text string, lineWidth int) string {
 		wrappedParagraphs = append(wrappedParagraphs, strings.Join(lines, "\n"))
 	}
 
+	for i := 0; i < len(wrappedParagraphs); i++ {
+		wrappedParagraphs[i] = strings.ReplaceAll(wrappedParagraphs[i], "`", "")
+	}
 	return strings.Join(wrappedParagraphs, "\n")
 }
