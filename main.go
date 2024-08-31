@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,9 +47,13 @@ var rootCmd = &cobra.Command{
 			printHelp()
 		} else if action == "clear" {
 			deleteSavedFiles()
+		} else if action == "update" {
+			updatePls()
 		} else {
 			fmt.Println("Unknown command:", action)
 		}
+
+		incrementUsage(action)
 	},
 }
 
@@ -95,6 +103,39 @@ func checkDiff() {
 	analyzeDiff(diff)
 }
 
+func incrementUsage(action string) {
+	data := map[string]string{
+		"action": action,
+	}
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+
+	resp, err := http.Post("https://pls.mom/usage", "application/json", bytes.NewBuffer(payload))
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+
+	var respData map[string]interface{}
+	err = json.Unmarshal(body, &respData)
+	if err != nil {
+		return
+	}
+
+	needs_update := respData["needs_update"]
+	if needs_update == true {
+		fmt.Println("Update required. Please enter your password if needed.")
+		updatePls()
+	}
+}
+
 func deleteSavedFiles() {
 	dir := filepath.Join(os.Getenv("HOME"), ".pls")
 	err := os.RemoveAll(dir)
@@ -114,6 +155,16 @@ func saveLastCommand(query string) {
 	err := os.WriteFile(filePath, []byte(query), 0644)
 	if err != nil {
 		fmt.Println("Error saving history. Run \033[1mpls clear\033[0m to reset.", err)
+	}
+}
+
+func updatePls() {
+	cmd := exec.Command("sh", "-c", "curl -s https://pls.mom/install.sh | sudo bash")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println("Error updating pls:", err)
 	}
 }
 
