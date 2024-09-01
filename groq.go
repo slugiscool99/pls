@@ -26,51 +26,49 @@ type ChatCompletionRequest struct {
 	Stop        *string   `json:"stop"`
 }
 
-// const groqKey = "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"
-// const groqKey = apiKey()
 
-func determineClarity(task string) string{
-	systemPrompt := "You screen the user's question for ambiguity. If could somewhat likely answer the question without more information, output 'Clear'. If you need more information, output a specific follow up question. Provide options if there are 3 or fewer scenarios with a 95% likelihood. Don't answer the question."
-	userPrompt := "Output a follow up question if needed. Otherwise, output 'Clear'. Do not answer the question. Input: " + task
-	answer := makeQuery(systemPrompt, userPrompt, false, nil)
-	if strings.TrimSpace(strings.ToLower(answer)) == "clear" {
-		return ""
-	} else {
-		return answer
-	}
-}
+// func determineClarity(task string) string{
+// 	systemPrompt := "You screen the user's question for ambiguity. If could somewhat likely answer the question without more information, output 'Clear'. If you need more information, output a specific follow up question. Provide options if there are 3 or fewer scenarios with a 95% likelihood. Don't answer the question."
+// 	userPrompt := "Output a follow up question if needed. Otherwise, output 'Clear'. Do not answer the question. Input: " + task
+// 	answer := makeQuery(systemPrompt, userPrompt, false, nil)
+// 	if strings.TrimSpace(strings.ToLower(answer)) == "clear" {
+// 		return ""
+// 	} else {
+// 		return answer
+// 	}
+// }
 
 // pls cmd
 func createShellCommand(task string, lsOutput string, pwdOutput string, currentBranch string, print bool, history *[]string) (string, bool) {
-	followUp := ""
-	if history == nil {
-		followUp = determineClarity(task)
-	}
-	if followUp == "" {
-		systemPrompt := "You are an expert at writing macos compatible shell commands from a user's instructions. Output ONLY line separated commands that can be pasted directly into a terminal. Commands must be executed directly from the terminal without opening any interactive interfaces, allowing everything to be executed seamlessly in a single step."
-		userPrompt := task
-		return makeQuery(systemPrompt, userPrompt, print, history), true
-	} else {
-		fmt.Println("")
-		fmt.Println(followUp)
-		fmt.Println("")
-		return followUp, false
-	}
+	// followUp := ""
+	// if history == nil {
+	// 	followUp = determineClarity(task)
+	// }
+	// if followUp == "" {
+	systemPrompt := "You are an expert at writing macos compatible shell commands from a user's instructions. Output ONLY line separated commands that can be pasted directly into a terminal. Commands must be executed directly from the terminal without opening any interactive interfaces, allowing everything to be executed seamlessly in a single step."
+	userPrompt := task
+	return makeQuery(systemPrompt, userPrompt, print, history), true
+	// } else {
+	// 	fmt.Println("")
+	// 	fmt.Println(followUp)
+	// 	fmt.Println("")
+	// 	return followUp, false
+	// }
 }
 
 // pls write
 func answerQuestion(question string) (string, bool) {
-	followUp := determineClarity(question)
-	if followUp == "" {
-		systemPrompt := "Answer the question as concisely as possible, without markdown. If the user is asking for code, output ONLY code. Do not use markdown except for backticks and asterisks."
-		userPrompt := question
-		return makeQuery(systemPrompt, userPrompt, true, nil), true
-	} else {
-		fmt.Println("")
-		fmt.Println(followUp)
-		fmt.Println("")
-		return followUp, false
-	}
+	// followUp := determineClarity(question)
+	// if followUp == "" {
+	systemPrompt := "Answer the question as concisely as possible, without markdown. If the user is asking for code, output ONLY code. Do not use markdown except for backticks and asterisks."
+	userPrompt := question
+	return makeQuery(systemPrompt, userPrompt, true, nil), true
+	// } else {
+	// 	fmt.Println("")
+	// 	fmt.Println(followUp)
+	// 	fmt.Println("")
+	// 	return followUp, false
+	// }
 }
 
 //pls explain
