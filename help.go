@@ -9,9 +9,11 @@ import (
 	"github.com/fatih/color"
 )
 
-func printHelp() {
-	fmt.Println("")
-	printWelcome()
+func printHelp(welcome bool) {
+	if welcome {
+		fmt.Println("")
+		printWelcome()
+	}
 	fmt.Println("")
 	printFormattedColumns()
 	fmt.Println("")

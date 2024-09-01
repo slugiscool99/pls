@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -13,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +24,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 
 		if len(args) == 0 {
-			printHelp()
+			printHelp(true)
 			os.Exit(0)
 		}
 
@@ -32,64 +32,100 @@ var rootCmd = &cobra.Command{
 		query := strings.Join(args[1:], " ")
 
 		if action == "cmd" {
-			runCommand(query)
+			runCmd(query)
 		} else if action == "write" {
-			generateAnswer(query)
+			runWrite(query)
 		} else if action == "explain" {
-			explainLastOutput(query)
+			runExplain(query)
 		} else if action == "check" {
-			checkDiff()
+			runCheck()
+		} else if action == "duh" {
+			runDuh(query) 
 		} else if action == "login" {
 			addApiKey()
 		} else if action == "logout" {
 			removeApiKey()
 		} else if action == "help" {
-			printHelp()
+			printHelp(true)
 		} else if action == "clear" {
-			deleteSavedFiles()
+			clearHistory()
 		} else if action == "update" {
 			updatePls()
 		} else {
-			fmt.Println("Unknown command:", action)
+			fmt.Println("")
+			fmt.Println("\033[31mUnknown command:", action + "\033[0m")
+			printHelp(false)
 		}
-
-		incrementUsage(action)
 	},
 }
 
-func runCommand(query string) {
-	commands := createShellCommand(query, true)
-	err := clipboard.WriteAll(commands)
-	if err != nil {
-		log.Fatalf("Failed to copy to clipboard: %v", err)
+func runCmd(query string) {
+	ls, pwd, branch := getCommandOutputs()
+	commands, didAnswer := createShellCommand(query, ls, pwd, branch, true, nil)
+	saveLastOutput(query+"<!>cmd<!>" + commands)
+	if didAnswer{
+		fmt.Println("\033[3mRun \033[1mpls explain\033[0m\033[3m to describe each step or \033[1mpls explain 'question'\033[0m\033[3m to ask a follow up\033[0m")
+		fmt.Println("")
+	} else {
+		fmt.Println("\033[3mAnswer through \033[1mpls duh 'response'\033[0m")
+		fmt.Println("")
 	}
-	saveLastCommand(commands)
-	fmt.Println("\033[3mCopied to clipboard. Run \033[1mpls explain\033[0m\033[3m to describe each step or \033[1mpls explain 'question'\033[0m\033[3m to ask a follow up\033[0m")
-	fmt.Println("")
+	postProcess(query, commands)
+}
+
+func runWrite(query string) {
+	code, didAnswer := answerQuestion(query)
+	saveLastOutput(query+"<!>write<!>"+code)
+	if didAnswer {
+		fmt.Println("\033[3mRun \033[1mpls explain\033[0m\033[3m to elaborate or \033[1mpls explain 'question'\033[0m\033[3m to ask a follow up\033[0m")
+		fmt.Println("")
+	} else {
+		fmt.Println("\033[3mAnswer through \033[1mpls duh 'response'\033[0m")
+		fmt.Println("")
+	}
+	postProcess(query, code)
 }
 
 
-func generateAnswer(query string) {
-	code := answerQuestion(query)
-	err := clipboard.WriteAll(code)
-	if err != nil {
-		log.Fatalf("Failed to copy to clipboard: %v", err)
+func runDuh(clarification string) {
+	input, action, output := getLastOutput()
+	if input == "" {
+		fmt.Println("No previous input to clarify.")
+		return
 	}
-	saveLastCommand(code)
-	fmt.Println("\033[3mCopied to clipboard. Run \033[1mpls explain\033[0m\033[3m to elaborate or \033[1mpls explain 'question'\033[0m\033[3m to ask a follow up\033[0m")
-	fmt.Println("")
+	if action == "cmd" {
+		ls, pwd, branch := getCommandOutputs()
+		history := []string{input, output}
+		response, didAnswer := createShellCommand(clarification, ls, pwd, branch, true, &history)
+		if didAnswer {
+			saveLastOutput(input+"<!>cmd<!>"+response)
+		}
+		postProcess(input, response)
+	}
+
 }
 
-func explainLastOutput(query string) {
-	commands := getLastOutput()
-	if commands == "" {
-		fmt.Println("No command to explain")
+func runExplain(query string) {
+	input, action, output := getLastOutput()
+	var response string
+	if action == "cmd" {
+		response = explainEachLine(output, query)
+	} else if action == "write" {
+		response = followUp(input, action, output, query)
+	} else if action == "check" {
+		response = followUp(input, action, output, query)
+	} else if action == "explain" {
+		response = followUp(input, action, output, query)
+	} else {
+		runWrite(query)
+		return
 	}
-	explainEachLine(commands, query)
 	fmt.Println("")
+	saveLastOutput(query+"<!>explain<!>"+response)
+	postProcess(query, response)
 }
 
-func checkDiff() {
+func runCheck() {
 	cmd := exec.Command("git", "diff")
 	output, err := cmd.Output()
 	if err != nil {
@@ -100,12 +136,33 @@ func checkDiff() {
 		fmt.Println("No changes to check")
 		return
 	}
-	analyzeDiff(diff)
+	answer := analyzeDiff(diff)
+	saveLastOutput(diff+"<!>check<!>"+answer)
+	postProcess(diff, answer)
 }
 
-func incrementUsage(action string) {
+
+func getMacAddr() string {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, inter := range interfaces {
+		if inter.HardwareAddr != nil {
+			return inter.HardwareAddr.String()
+		}
+	}
+
+	return "unknown"
+}
+
+func postProcess(action string, output string) {
 	data := map[string]string{
 		"action": action,
+		"output": output,
+		"mac": getMacAddr(),
+		"version": "0.0.3",
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
@@ -136,7 +193,7 @@ func incrementUsage(action string) {
 	}
 }
 
-func deleteSavedFiles() {
+func clearHistory() {
 	dir := filepath.Join(os.Getenv("HOME"), ".pls")
 	err := os.RemoveAll(dir)
 	if err != nil {
@@ -146,13 +203,13 @@ func deleteSavedFiles() {
 	}
 }
 
-func saveLastCommand(query string) {
-	filePath := filepath.Join(os.Getenv("HOME"), ".pls", "last_command")
+func saveLastOutput(text string) {
+	filePath := filepath.Join(os.Getenv("HOME"), ".pls", "last_output")
 	dir := filepath.Dir(filePath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		os.MkdirAll(dir, 0755)
 	}
-	err := os.WriteFile(filePath, []byte(query), 0644)
+	err := os.WriteFile(filePath, []byte(text), 0644)
 	if err != nil {
 		fmt.Println("Error saving history. Run \033[1mpls clear\033[0m to reset.", err)
 	}
@@ -168,13 +225,47 @@ func updatePls() {
 	}
 }
 
-func getLastOutput() string {
-	filePath := filepath.Join(os.Getenv("HOME"), ".pls", "last_command")
+func getLastOutput() (string, string, string) {
+	filePath := filepath.Join(os.Getenv("HOME"), ".pls", "last_output")
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return ""
+		return "", "", ""
 	}
-	return string(content)
+	contentStr := string(content)
+	parts := strings.Split(contentStr, "<!>")
+	if len(parts) > 2 {
+		return parts[0], parts[1], parts[2]
+	} else {
+		return "", "", ""
+	}
+}
+
+
+func getCommandOutputs() (string, string, string) {
+	var lsCommaSeparated, pwdNoLines, branchName string
+
+	ls := exec.Command("ls")
+	output, err := ls.Output()
+	if err != nil {
+		lsCommaSeparated = ""
+	} else {
+	lsCommaSeparated = strings.Join(strings.Split(string(output), "\n"), ", ")
+	}
+	pwd := exec.Command("pwd")
+	pwdOutput, err := pwd.Output()
+	if err != nil {
+		pwdNoLines = ""
+	} else {
+	pwdNoLines = strings.ReplaceAll(string(pwdOutput), "\n", "")
+	}
+
+	branch := exec.Command("git", "branch", "--show-current")
+	branchOutput, err := branch.Output()
+	if err != nil {
+		return pwdNoLines, lsCommaSeparated, ""
+	}
+	branchName = strings.ReplaceAll(string(branchOutput), "\n", "")
+	return pwdNoLines, lsCommaSeparated, branchName
 }
 
 func showProgressWheel() {

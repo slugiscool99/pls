@@ -29,50 +29,116 @@ type ChatCompletionRequest struct {
 // const groqKey = "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"
 // const groqKey = apiKey()
 
+func determineClarity(task string) string{
+	systemPrompt := "You screen the user's question for ambiguity. If could somewhat likely answer the question without more information, output 'Clear'. If you need more information, output a specific follow up question. Provide options if there are 3 or fewer scenarios with a 95% likelihood. Don't answer the question."
+	userPrompt := "Output a follow up question if needed. Otherwise, output 'Clear'. Do not answer the question. Input: " + task
+	answer := makeQuery(systemPrompt, userPrompt, false, nil)
+	if strings.TrimSpace(strings.ToLower(answer)) == "clear" {
+		return ""
+	} else {
+		return answer
+	}
+}
+
 // pls cmd
-func createShellCommand(task string, print bool) string {
-	systemPrompt := "You are an expert at writing macos compatible shell commands from a user's instructions. Output ONLY line separated commands that can be pasted directly into a terminal. Commands must be executed directly from the terminal without opening any interactive interfaces, allowing everything to be executed seamlessly in a single step."
-	userPrompt := task
-	return makeQuery(systemPrompt, userPrompt, print)
+func createShellCommand(task string, lsOutput string, pwdOutput string, currentBranch string, print bool, history *[]string) (string, bool) {
+	followUp := ""
+	if history == nil {
+		followUp = determineClarity(task)
+	}
+	if followUp == "" {
+		systemPrompt := "You are an expert at writing macos compatible shell commands from a user's instructions. Output ONLY line separated commands that can be pasted directly into a terminal. Commands must be executed directly from the terminal without opening any interactive interfaces, allowing everything to be executed seamlessly in a single step."
+		userPrompt := task
+		return makeQuery(systemPrompt, userPrompt, print, history), true
+	} else {
+		fmt.Println("")
+		fmt.Println(followUp)
+		fmt.Println("")
+		return followUp, false
+	}
+}
+
+// pls write
+func answerQuestion(question string) (string, bool) {
+	followUp := determineClarity(question)
+	if followUp == "" {
+		systemPrompt := "Answer the question as concisely as possible, without markdown. If the user is asking for code, output ONLY code. Do not use markdown except for backticks and asterisks."
+		userPrompt := question
+		return makeQuery(systemPrompt, userPrompt, true, nil), true
+	} else {
+		fmt.Println("")
+		fmt.Println(followUp)
+		fmt.Println("")
+		return followUp, false
+	}
 }
 
 //pls explain
 func explainEachLine(content string, prompt string) string {
-	systemPrompt := "You are an expert at explaining shell commands, code, regex, and other programming syntax. "
+	systemPrompt := "You are an expert at explaining shell commands, code, regex, and other programming syntax. You never use markdown other than backticks. "
 	if prompt == "" {
 		systemPrompt += "The user will provide an input, explain what each line does in no more than 1 sentence. Output {line}: {your explaination} for each line. Do not output any other text."
 	} else {
 		systemPrompt += "The user will provide an input. Concisely answer the following about it: " + prompt
 	}
 	userPrompt := content
-	return makeQuery(systemPrompt, userPrompt, true)
+	return makeQuery(systemPrompt, userPrompt, true, nil)
 }
 
-// pls code
-func answerQuestion(question string) string {
-	systemPrompt := "Answer the question as concisely as possible, without markdown. If the user is asking for code, output ONLY code."
-	userPrompt := question
-	return makeQuery(systemPrompt, userPrompt, true)
+func followUp(input string, action string, output string, userPrompt string) string{
+	systemPrompt := ""
+	if action == "cmd" {
+		systemPrompt = "You are an expert helping the user with the macos shell."
+	} else if action == "write" {
+		systemPrompt = "You are an expert at writing regex, code, and other programming syntax."
+	} else if action == "explain" {
+		systemPrompt = "You are an interface within a macos terminal shell. Your job is to explain shell commands, code, regex, and answer other programming related questions."
+	} else if action == "check" {
+		systemPrompt = "You are an expert at analyzing git diffs for issues."
+	}
+
+	systemPrompt += "Answer the user's question clearly but as concisely as possible. Do not use markdown except for backticks and asterisks."
+
+	history := []string{input, action, output}
+
+	return makeQuery(systemPrompt, userPrompt, true, &history)
 }
 
 //pls check
 func analyzeDiff(diff string) string {
-	systemPrompt := "You are an expert at analyzing git diffs for issues. Output any issues found in the diff. If no issues are found, output 'No issues found'."
+	systemPrompt := "You are an expert at analyzing git diffs for issues. Output any issues found in the diff. If no issues are found, output 'No issues found'. Do not use markdown except for backticks and asterisks."
 	userPrompt := diff
-	return makeQuery(systemPrompt, userPrompt, true)
+	return makeQuery(systemPrompt, userPrompt, true, nil)
 }
 
-func makeQuery(systemPrompt string, userPrompt string, print bool) string {
+func makeQuery(systemPrompt string, userPrompt string, print bool, history *[]string) string {
 	messages := []Message{
 		{
 			Role:    "system",
 			Content: systemPrompt,
 		},
-		{
-			Role:    "user",
-			Content: userPrompt,
-		},
 	}
+
+	if history != nil {
+		historyMessages := *history
+		for index, message := range historyMessages {
+			role := "user"
+			if index % 2 == 1 {
+				role = "assistant"
+			}
+			messages = append(messages, Message{
+				Role:    role,
+				Content: message,
+			})
+		}
+	}
+
+	messages = append(messages, Message{
+		Role:    "user",
+		Content: userPrompt,
+	})
+
+	
 
 	requestBody := ChatCompletionRequest{
 		Messages:    messages,
@@ -112,6 +178,7 @@ func makeQuery(systemPrompt string, userPrompt string, print bool) string {
 	}
 
 	var accumulatedText string
+	var fullText string
 	terminalWidth := getTerminalWidth() - 40
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
@@ -130,6 +197,7 @@ func makeQuery(systemPrompt string, userPrompt string, print bool) string {
 					delta := choices[0].(map[string]interface{})["delta"]
 					if content, ok := delta.(map[string]interface{})["content"]; ok {
 						accumulatedText += content.(string)
+						fullText += content.(string)
 
 						// Check if we have a complete paragraph
 						if strings.Contains(accumulatedText, "\n\n") {
@@ -160,8 +228,7 @@ func makeQuery(systemPrompt string, userPrompt string, print bool) string {
 		fmt.Println("Error reading response body:", err)
 	}
 
-	accumulatedText = strings.ReplaceAll(accumulatedText, "`", "")
-	return accumulatedText
+	return strings.ReplaceAll(fullText, "`", "")
 }
 
 func getTerminalWidth() int {
@@ -172,9 +239,13 @@ func getTerminalWidth() int {
 	return width
 }
 
+
 func wrapText(text string, lineWidth int) string {
 	paragraphs := strings.Split(text, "\n")
 	var wrappedParagraphs []string
+
+	codeStart := "\033[1m"
+	codeEnd := "\033[0m"
 
 	for _, paragraph := range paragraphs {
 		words := strings.Fields(paragraph)
@@ -199,8 +270,21 @@ func wrapText(text string, lineWidth int) string {
 		wrappedParagraphs = append(wrappedParagraphs, strings.Join(lines, "\n"))
 	}
 
+	// Wrap code within backticks with ANSI bold codes
 	for i := 0; i < len(wrappedParagraphs); i++ {
-		wrappedParagraphs[i] = strings.ReplaceAll(wrappedParagraphs[i], "`", "")
+		styledText := ""
+
+		allSingleBackticks := strings.ReplaceAll(wrappedParagraphs[i], "```", "`")
+		codeSections := strings.Split(allSingleBackticks, "`")
+		for j := 0; j < len(codeSections); j += 1 {
+			if j % 2 == 1 {
+				styledText += (codeStart + codeSections[j] + codeEnd)
+			} else {
+				styledText += codeSections[j]
+			}
+		}
+		wrappedParagraphs[i] = styledText
 	}
+
 	return strings.Join(wrappedParagraphs, "\n")
 }

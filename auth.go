@@ -19,7 +19,7 @@ func apiKey() string {
 }
 
 func addApiKey() {
-	fmt.Println("Please enter your Groq.com API key:")
+	fmt.Println("Please enter your API key from https://console.groq.com/keys:")
 	var apiKey string
 	fmt.Scanln(&apiKey)
 	cmd := exec.Command("security", "add-generic-password", "-s", "pls_cli_auth", "-a", "user", "-w", apiKey)
