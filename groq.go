@@ -85,7 +85,7 @@ func explainEachLine(content string, prompt string) string {
 
 func followUp(input string, action string, output string, userPrompt string) string{
 	systemPrompt := ""
-	if action == "cmd" {
+	if action == "do" {
 		systemPrompt = "You are an expert helping the user with the macos shell."
 	} else if action == "write" {
 		systemPrompt = "You are an expert at writing regex, code, and other programming syntax."
