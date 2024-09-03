@@ -51,6 +51,8 @@ var rootCmd = &cobra.Command{
 			clearHistory()
 		} else if action == "update" {
 			updatePls()
+		} else if action == "investigate" {
+			runInvestigate(query)
 		} else {
 			fmt.Println("")
 			fmt.Println("\033[31mUnknown command:", action + "\033[0m")
@@ -84,6 +86,13 @@ func runWrite(query string) {
 		fmt.Println("")
 	}
 	postProcess(query, code)
+}
+
+func runInvestigate(query string) {
+	fmt.Println("")
+	fmt.Println("\033[33mNot available yet")
+	fmt.Println("")
+	postProcess(query, "Investigating...")
 }
 
 
