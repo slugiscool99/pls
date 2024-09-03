@@ -23,10 +23,10 @@ func printFormattedColumns() {
 		Option      string
 		Description string
 	}{
-		{"pls \033[1mdo\033[0m \033[33m-now\033[0m \033[34m'a shell task'\033[0m", "Writes shell commands. \033[33mExecutes immediately if -now is included (optional)\033[0m"},
-		{"pls \033[1mwrite\033[0m \033[34m'your prompt'\033[0m", "Writes regex, code, etc"},
+		{"pls \033[1msh\033[0m \033[34m'a shell task'\033[0m", "Writes shell commands."},
 		{"pls \033[1mcheck\033[0m", "Checks your working directory for issues"},
-		{"pls \033[1mmorehelp\033[0m", "More help options"},
+		{"pls \033[1mwrite\033[0m \033[34m'your prompt'\033[0m", "Writes regex, code, etc"},
+		// {"pls \033[1mmorehelp\033[0m", "More help options"},
 		// {"pls \033[1mupdate\033[0m or \033[1mlogin\033[0m or \033[1mlogout\033[0m", "Manage pls settings"},
 		// {"pls \033[1mcode\033[0m \033[34m'prompt'\033[0m", "Writes code snippets"},
 		// {"pls \033[1mexplain\033[0m \033[34m'question'\033[0m", "Answers a question about your repo"},

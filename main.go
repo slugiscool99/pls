@@ -31,7 +31,7 @@ var rootCmd = &cobra.Command{
 		action := args[0]
 		query := strings.Join(args[1:], " ")
 
-		if action == "do" {
+		if action == "sh" {
 			runCmd(query)
 		} else if action == "write" {
 			runWrite(query)
