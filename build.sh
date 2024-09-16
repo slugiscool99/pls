@@ -27,18 +27,18 @@ sed -i.bak '170s/"version": "[^"]*"/"version": "'"$new_version"'"/' main.go
 echo "Updated version to $new_version"
 
 # Build the project
-go build -o "pls-$new_version"
-tar -czf "pls-$new_version.tar.gz" "pls-$new_version"
+go build -o "pls"
+tar -czf "pls-$new_version.tar.gz" "pls"
 
-cp "pls-$new_version" /Users/adam/Documents/GitHub/pls-site/public/pls
+cp "pls" /Users/adam/Documents/GitHub/pls-site/public/pls
 cp "pls-$new_version.tar.gz" /Users/adam/Documents/GitHub/pls-site/public
 
 # Update install.sh with new version
 install_sh_path="/Users/adam/Documents/GitHub/pls-site/public/install.sh"
-sed -i.bak "s/DOWNLOAD_URL=\"https:\/\/pls\.mom\/pls-.*\.tar\.gz\"/DOWNLOAD_URL=\"https:\/\/pls\.mom\/pls-$new_version.tar.gz\"/" "$install_sh_path"
+sed -i.bak "s/VERSION=\".*\"/VERSION=\"$new_version\"/" "$install_sh_path"
 echo "Updated install.sh with new version: $new_version"
 
-echo "Built and copied pls-$new_version and pls-$new_version.tar.gz to /Users/adam/Documents/GitHub/pls-site/public/pls"
+echo "Built and copied pls and pls-$new_version.tar.gz to /Users/adam/Documents/GitHub/pls-site/public/pls"
 
 # Remove the backup file created by sed
 rm main.go.bak
