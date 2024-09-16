@@ -31,13 +31,7 @@ var rootCmd = &cobra.Command{
 		action := args[0]
 		query := strings.Join(args[1:], " ")
 
-		if action == "sh" {
-			runCmd(query)
-		} else if action == "write" {
-			runWrite(query)
-		} else if action == "explain" {
-			runExplain(query)
-		} else if action == "check" {
+		if action == "check" {
 			runCheck()
 		} else if action == "duh" {
 			runDuh(query) 
@@ -53,10 +47,12 @@ var rootCmd = &cobra.Command{
 			updatePls()
 		} else if action == "investigate" {
 			runInvestigate(query)
-		} else {
+		} else if strings.TrimSpace(action) == "" {
 			fmt.Println("")
 			fmt.Println("\033[31mUnknown command:", action + "\033[0m")
 			printHelp(false)
+		} else {
+			runCmd(query)
 		}
 	},
 }

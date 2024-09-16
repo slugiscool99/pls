@@ -23,8 +23,8 @@ func printFormattedColumns() {
 		Option      string
 		Description string
 	}{
-		{"pls \033[1msh\033[0m \033[34m'a shell task'\033[0m", "Writes shell commands."},
-		{"pls \033[1mwrite\033[0m \033[34m'your prompt'\033[0m", "Writes regex, code, etc"},
+		{"pls \033[34m'a shell task'\033[0m", "Writes shell commands."},
+		// {"pls \033[1mwrite\033[0m \033[34m'your prompt'\033[0m", "Writes regex, code, etc"},
 		{"pls \033[1mcheck\033[0m", "Checks your working directory for issues"},
 		// {"pls \033[1minvestigate\033[0m \033[34m'a problem'\033[0m", "Diagnoses system problems (coming soon)"},
 		// {"pls \033[1mmorehelp\033[0m", "More help options"},
