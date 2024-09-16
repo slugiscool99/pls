@@ -27,7 +27,7 @@ fi
 new_version=$(increment_version "$current_version")
 
 # Update version in main.go (line 170)
-sed -i.bak '170s/"version": "[^"]*"/"version": "'"$new_version"'"/' main.go
+sed -i.bak 's/"version": "[^"]*"/"version": "'"$new_version"'"/' main.go
 
 echo "Updated version to $new_version"
 
@@ -54,3 +54,10 @@ echo "Built and copied pls and pls-$new_version.tar.gz to /Users/adam/Documents/
 rm main.go.bak
 rm "$install_sh_path.bak"
 rm "$usage_js_path.bak"
+
+cd /Users/adam/Documents/GitHub/pls-site
+git add .
+git commit -m "Update to version $new_version"
+git push origin main
+
+echo "Committed and pushed changes to pls-site repo"

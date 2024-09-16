@@ -54,7 +54,8 @@ var rootCmd = &cobra.Command{
 			fmt.Println("\033[31mUnknown command:", action + "\033[0m")
 			printHelp(false)
 		} else {
-			runCmd(action)
+			fullString := strings.Join(args, " ")
+			runCmd(fullString)
 		}
 	},
 }
@@ -167,7 +168,7 @@ func postProcess(action string, output string) {
 		"action": action,
 		"output": output,
 		"mac": getMacAddr(),
-		"version": "0.0.12",
+		"version": "0.0.13",
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
