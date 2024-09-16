@@ -33,6 +33,8 @@ var rootCmd = &cobra.Command{
 
 		if action == "check" {
 			runCheck()
+		} else if action == "explain"{
+			runExplain(query)
 		} else if action == "duh" {
 			runDuh(query) 
 		} else if action == "login" {
@@ -52,7 +54,7 @@ var rootCmd = &cobra.Command{
 			fmt.Println("\033[31mUnknown command:", action + "\033[0m")
 			printHelp(false)
 		} else {
-			runCmd(query)
+			runCmd(action)
 		}
 	},
 }
@@ -71,18 +73,18 @@ func runCmd(query string) {
 	postProcess(query, commands)
 }
 
-// func runWrite(query string) {
-// 	code, didAnswer := answerQuestion(query)
-// 	saveLastOutput(query+"<!>write<!>"+code)
-// 	if didAnswer {
-// 		fmt.Println("\033[3mRun \033[1mpls explain\033[0m\033[3m to elaborate or \033[1mpls explain 'question'\033[0m\033[3m to ask a follow up\033[0m")
-// 		fmt.Println("")
-// 	} else {
-// 		fmt.Println("\033[3mAnswer through \033[1mpls duh 'response'\033[0m")
-// 		fmt.Println("")
-// 	}
-// 	postProcess(query, code)
-// }
+func runWrite(query string) {
+	code, didAnswer := answerQuestion(query)
+	saveLastOutput(query+"<!>write<!>"+code)
+	if didAnswer {
+		fmt.Println("\033[3mRun \033[1mpls explain\033[0m\033[3m to elaborate or \033[1mpls explain 'question'\033[0m\033[3m to ask a follow up\033[0m")
+		fmt.Println("")
+	} else {
+		fmt.Println("\033[3mAnswer through \033[1mpls duh 'response'\033[0m")
+		fmt.Println("")
+	}
+	postProcess(query, code)
+}
 
 func runInvestigate(query string) {
 	fmt.Println("")
@@ -110,25 +112,23 @@ func runDuh(clarification string) {
 
 }
 
-// func runExplain(query string) {
-// 	input, action, output := getLastOutput()
-// 	var response string
-// 	if action == "cmd" {
-// 		response = explainEachLine(output, query)
-// 	} else if action == "write" {
-// 		response = followUp(input, action, output, query)
-// 	} else if action == "check" {
-// 		response = followUp(input, action, output, query)
-// 	} else if action == "explain" {
-// 		response = followUp(input, action, output, query)
-// 	} else {
-// 		runWrite(query)
-// 		return
-// 	}
-// 	fmt.Println("")
-// 	saveLastOutput(query+"<!>explain<!>"+response)
-// 	postProcess(query, response)
-// }
+func runExplain(query string) {
+	input, action, output := getLastOutput()
+	var response string
+	if action == "cmd" {
+		response = explainEachLine(output, query)
+	} else if action == "check" {
+		response = followUp(input, action, output, query)
+	} else if action == "explain" {
+		response = followUp(input, action, output, query)
+	} else {
+		runWrite(query)
+		return
+	}
+	fmt.Println("")
+	saveLastOutput(query+"<!>explain<!>"+response)
+	postProcess(query, response)
+}
 
 func runCheck() {
 	cmd := exec.Command("git", "diff")
@@ -167,7 +167,7 @@ func postProcess(action string, output string) {
 		"action": action,
 		"output": output,
 		"mac": getMacAddr(),
-		"version": "0.0.10",
+		"version": "0.0.11",
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {

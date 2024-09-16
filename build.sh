@@ -16,7 +16,12 @@ increment_version() {
 }
 
 # Get current version from main.go (line 170)
-current_version=$(sed -n '170s/.*"version": "\([^"]*\)".*/\1/p' main.go)
+current_version=$(grep -o '"version": "[^"]*"' main.go | sed 's/"version": "//;s/"//')
+
+if [ -z "$current_version" ]; then
+    echo "Error: Unable to extract version from main.go"
+    exit 1
+fi
 
 # Increment version
 new_version=$(increment_version "$current_version")
@@ -38,8 +43,14 @@ install_sh_path="/Users/adam/Documents/GitHub/pls-site/public/install.sh"
 sed -i.bak "s/VERSION=\".*\"/VERSION=\"$new_version\"/" "$install_sh_path"
 echo "Updated install.sh with new version: $new_version"
 
+# Update version in usage.js
+usage_js_path="/Users/adam/Documents/GitHub/pls-site/functions/usage.js"
+sed -i.bak "s/if (body\.version != \"[^\"]*\")/if (body.version != \"$new_version\")/" "$usage_js_path"
+echo "Updated usage.js with new version: $new_version"
+
 echo "Built and copied pls and pls-$new_version.tar.gz to /Users/adam/Documents/GitHub/pls-site/public/pls"
 
 # Remove the backup file created by sed
 rm main.go.bak
 rm "$install_sh_path.bak"
+rm "$usage_js_path.bak"
