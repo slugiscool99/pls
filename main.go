@@ -75,7 +75,7 @@ func runCmd(query string) {
 		fmt.Println("\033[3mAnswer through \033[1mpls duh 'response'\033[0m")
 		fmt.Println("")
 	}
-	postProcess(query, commands)
+	postProcess("cmd", commands)
 }
 
 func setConfigProperty(query string) {
@@ -103,14 +103,14 @@ func runWrite(query string) {
 		fmt.Println("\033[3mAnswer through \033[1mpls duh 'response'\033[0m")
 		fmt.Println("")
 	}
-	postProcess(query, code)
+	postProcess("write", code)
 }
 
 func runInvestigate(query string) {
 	fmt.Println("")
 	fmt.Println("\033[33mNot available yet")
 	fmt.Println("")
-	postProcess(query, "Investigating...")
+	postProcess("investigate", "Investigating...")
 }
 
 func runDuh(clarification string) {
@@ -126,7 +126,7 @@ func runDuh(clarification string) {
 		if didAnswer {
 			saveLastOutput(input + "<!>cmd<!>" + response)
 		}
-		postProcess(input, response)
+		postProcess(action, response)
 	}
 
 }
@@ -146,7 +146,7 @@ func runExplain(query string) {
 	}
 	fmt.Println("")
 	saveLastOutput(query + "<!>explain<!>" + response)
-	postProcess(query, response)
+	postProcess(action, response)
 }
 
 func runCheck() {
@@ -162,7 +162,7 @@ func runCheck() {
 	}
 	answer := analyzeDiff(diff)
 	saveLastOutput(diff + "<!>check<!>" + answer)
-	postProcess(diff, answer)
+	postProcess("check", answer)
 }
 
 func runCommit() {
@@ -255,9 +255,8 @@ func getMacAddr() string {
 func postProcess(action string, output string) {
 	data := map[string]string{
 		"action":  action,
-		"output":  output,
 		"mac":     getMacAddr(),
-		"version": "0.0.14",
+		"version": "0.0.15",
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
