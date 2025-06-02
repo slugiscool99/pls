@@ -33,10 +33,12 @@ var rootCmd = &cobra.Command{
 
 		if action == "check" {
 			runCheck()
-		} else if action == "explain"{
+		} else if action == "commit" {
+			runCommit()
+		} else if action == "explain" {
 			runExplain(query)
 		} else if action == "duh" {
-			runDuh(query) 
+			runDuh(query)
 		} else if action == "login" {
 			addApiKey()
 		} else if action == "logout" {
@@ -45,13 +47,15 @@ var rootCmd = &cobra.Command{
 			printHelp(true)
 		} else if action == "clear" {
 			clearHistory()
-		} else if action == "update" {
+		} else if action == "update-pls" {
 			updatePls()
+		} else if action == "set" {
+			setConfigProperty(query)
 		} else if action == "investigate" {
 			runInvestigate(query)
 		} else if strings.TrimSpace(action) == "" {
 			fmt.Println("")
-			fmt.Println("\033[31mUnknown command:", action + "\033[0m")
+			fmt.Println("\033[31mUnknown command:", action+"\033[0m")
 			printHelp(false)
 		} else {
 			fullString := strings.Join(args, " ")
@@ -63,8 +67,8 @@ var rootCmd = &cobra.Command{
 func runCmd(query string) {
 	ls, pwd, branch := getCommandOutputs()
 	commands, didAnswer := createShellCommand(query, ls, pwd, branch, true, nil)
-	saveLastOutput(query+"<!>cmd<!>" + commands)
-	if didAnswer{
+	saveLastOutput(query + "<!>cmd<!>" + commands)
+	if didAnswer {
 		fmt.Println("\033[3mRun \033[1mpls explain\033[0m\033[3m to describe each step or \033[1mpls explain 'question'\033[0m\033[3m to ask a follow up\033[0m")
 		fmt.Println("")
 	} else {
@@ -74,9 +78,24 @@ func runCmd(query string) {
 	postProcess(query, commands)
 }
 
+func setConfigProperty(query string) {
+	property := strings.Split(query, " ")[0]
+	value := strings.Join(strings.Split(query, " ")[1:], " ")
+	config := getConfig()
+	if property == "model" {
+		config.Model = value
+	} else if property == "prompt" {
+		config.Prompt = value
+	} else {
+		fmt.Println("\033[1mpls set\033[0m <\033[32mmodel\033[0m|\033[32mprompt\033[0m|\033[32murl\033[0m> <value>")
+		return
+	}
+	setConfig(config)
+}
+
 func runWrite(query string) {
 	code, didAnswer := answerQuestion(query)
-	saveLastOutput(query+"<!>write<!>"+code)
+	saveLastOutput(query + "<!>write<!>" + code)
 	if didAnswer {
 		fmt.Println("\033[3mRun \033[1mpls explain\033[0m\033[3m to elaborate or \033[1mpls explain 'question'\033[0m\033[3m to ask a follow up\033[0m")
 		fmt.Println("")
@@ -94,7 +113,6 @@ func runInvestigate(query string) {
 	postProcess(query, "Investigating...")
 }
 
-
 func runDuh(clarification string) {
 	input, action, output := getLastOutput()
 	if input == "" {
@@ -106,7 +124,7 @@ func runDuh(clarification string) {
 		history := []string{input, output}
 		response, didAnswer := createShellCommand(clarification, ls, pwd, branch, true, &history)
 		if didAnswer {
-			saveLastOutput(input+"<!>cmd<!>"+response)
+			saveLastOutput(input + "<!>cmd<!>" + response)
 		}
 		postProcess(input, response)
 	}
@@ -127,7 +145,7 @@ func runExplain(query string) {
 		return
 	}
 	fmt.Println("")
-	saveLastOutput(query+"<!>explain<!>"+response)
+	saveLastOutput(query + "<!>explain<!>" + response)
 	postProcess(query, response)
 }
 
@@ -143,10 +161,81 @@ func runCheck() {
 		return
 	}
 	answer := analyzeDiff(diff)
-	saveLastOutput(diff+"<!>check<!>"+answer)
+	saveLastOutput(diff + "<!>check<!>" + answer)
 	postProcess(diff, answer)
 }
 
+func runCommit() {
+	// Check if there are any staged changes
+	stagedCmd := exec.Command("git", "diff", "--cached")
+	stagedOutput, err := stagedCmd.Output()
+	if err != nil {
+		fmt.Println("Error checking staged changes:", err)
+		return
+	}
+	
+	// Check if there are any unstaged changes
+	unstagedCmd := exec.Command("git", "diff")
+	unstagedOutput, err := unstagedCmd.Output()
+	if err != nil {
+		fmt.Println("Error checking unstaged changes:", err)
+		return
+	}
+	
+	stagedDiff := string(stagedOutput)
+	unstagedDiff := string(unstagedOutput)
+	
+	// If there are no staged changes but there are unstaged changes, stage them
+	if stagedDiff == "" && unstagedDiff != "" {
+		fmt.Println("Staging all changes...")
+		addCmd := exec.Command("git", "add", ".")
+		err := addCmd.Run()
+		if err != nil {
+			fmt.Println("Error staging changes:", err)
+			return
+		}
+		
+		// Get the staged diff after adding
+		stagedCmd = exec.Command("git", "diff", "--cached")
+		stagedOutput, err = stagedCmd.Output()
+		if err != nil {
+			fmt.Println("Error getting staged changes:", err)
+			return
+		}
+		stagedDiff = string(stagedOutput)
+	}
+	
+	// If there are still no staged changes, nothing to commit
+	if stagedDiff == "" {
+		fmt.Println("No changes to commit")
+		return
+	}
+	
+	// Generate commit message based on the staged diff
+	fmt.Println("Analyzing changes and generating commit message...")
+	commitMessage := generateCommitMessage(stagedDiff)
+	
+	if commitMessage == "" {
+		fmt.Println("Failed to generate commit message")
+		return
+	}
+	
+	fmt.Printf("Generated commit message: \033[32m%s\033[0m\n", commitMessage)
+	
+	// Execute git commit with the generated message
+	commitCmd := exec.Command("git", "commit", "-m", commitMessage)
+	commitCmd.Stdout = os.Stdout
+	commitCmd.Stderr = os.Stderr
+	err = commitCmd.Run()
+	if err != nil {
+		fmt.Println("Error committing changes:", err)
+		return
+	}
+	
+	fmt.Println("Changes committed successfully. Run git \033[1mpush\033[0m to push your changes to the remote repository.")
+	saveLastOutput(stagedDiff + "<!>commit<!>" + commitMessage)
+	postProcess("commit", commitMessage)
+}
 
 func getMacAddr() string {
 	interfaces, err := net.Interfaces()
@@ -165,10 +254,10 @@ func getMacAddr() string {
 
 func postProcess(action string, output string) {
 	data := map[string]string{
-		"action": action,
-		"output": output,
-		"mac": getMacAddr(),
-		"version": "0.0.13",
+		"action":  action,
+		"output":  output,
+		"mac":     getMacAddr(),
+		"version": "0.0.14",
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
@@ -246,7 +335,6 @@ func getLastOutput() (string, string, string) {
 	}
 }
 
-
 func getCommandOutputs() (string, string, string) {
 	var lsCommaSeparated, pwdNoLines, branchName string
 
@@ -255,14 +343,14 @@ func getCommandOutputs() (string, string, string) {
 	if err != nil {
 		lsCommaSeparated = ""
 	} else {
-	lsCommaSeparated = strings.Join(strings.Split(string(output), "\n"), ", ")
+		lsCommaSeparated = strings.Join(strings.Split(string(output), "\n"), ", ")
 	}
 	pwd := exec.Command("pwd")
 	pwdOutput, err := pwd.Output()
 	if err != nil {
 		pwdNoLines = ""
 	} else {
-	pwdNoLines = strings.ReplaceAll(string(pwdOutput), "\n", "")
+		pwdNoLines = strings.ReplaceAll(string(pwdOutput), "\n", "")
 	}
 
 	branch := exec.Command("git", "branch", "--show-current")

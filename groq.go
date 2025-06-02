@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/term"
@@ -26,6 +28,14 @@ type ChatCompletionRequest struct {
 	Stop        *string   `json:"stop"`
 }
 
+type Config struct {
+	Model       string  `json:"model"`
+	Prompt      string  `json:"prompt"`
+	Url         string  `json:"url"`
+	Temperature float64 `json:"temperature"`
+	MaxTokens   int     `json:"max_tokens"`
+	TopP        float64 `json:"top_p"`
+}
 
 // func determineClarity(task string) string{
 // 	systemPrompt := "You screen the user's question for ambiguity. If could somewhat likely answer the question without more information, output 'Clear'. If you need more information, output a specific follow up question. Provide options if there are 3 or fewer scenarios with a 95% likelihood. Don't answer the question."
@@ -71,7 +81,7 @@ func answerQuestion(question string) (string, bool) {
 	// }
 }
 
-//pls explain
+// pls explain
 func explainEachLine(content string, prompt string) string {
 	systemPrompt := "You are an expert at explaining shell commands, code, regex, and other programming syntax. You never use markdown other than backticks. "
 	if prompt == "" {
@@ -83,7 +93,7 @@ func explainEachLine(content string, prompt string) string {
 	return makeQuery(systemPrompt, userPrompt, true, nil)
 }
 
-func followUp(input string, action string, output string, userPrompt string) string{
+func followUp(input string, action string, output string, userPrompt string) string {
 	systemPrompt := ""
 	if action == "sh" {
 		systemPrompt = "You are an expert helping the user with the macos shell."
@@ -102,11 +112,74 @@ func followUp(input string, action string, output string, userPrompt string) str
 	return makeQuery(systemPrompt, userPrompt, true, &history)
 }
 
-//pls check
+// pls check
 func analyzeDiff(diff string) string {
-	systemPrompt := "You are an expert at analyzing git diffs for issues. Output any issues found in the diff. If no issues are found, output 'No issues found'. Do not use markdown except for backticks and asterisks."
+	systemPrompt := "You are an expert at analyzing git diffs for issues. Output any issues found in the diff. If no issues are found, output 'No issues found'. Do not use markdown except for backticks and asterisks. Only raise glaring issues that could cause real problems, not any nitpicky issues."
 	userPrompt := diff
 	return makeQuery(systemPrompt, userPrompt, true, nil)
+}
+
+// pls commit
+func generateCommitMessage(diff string) string {
+	systemPrompt := "You are an expert at writing concise, descriptive git commit messages. Based on the git diff provided, generate a single line commit message that follows conventional commit format when appropriate (e.g., feat:, fix:, docs:, etc.). The message should be clear, concise, and describe what was changed. Be specific! Output ONLY the commit message, no additional text or explanation."
+	userPrompt := diff
+	return makeQuery(systemPrompt, userPrompt, false, nil)
+}
+
+func defaultConfig() Config {
+	return Config{
+		Model:       "llama3-70b-8192",
+		Prompt:      "",
+		Url:         "https://api.groq.com/openai/v1/chat/completions",
+		Temperature: 0.7,
+		MaxTokens:   1000,
+		TopP:        0.9,
+	}
+}
+
+func getConfig() Config {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println("Error getting home directory:", err)
+		return defaultConfig()
+	}
+
+	configPath := filepath.Join(homeDir, ".pls_config")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return defaultConfig()
+	}
+
+	var config Config
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return defaultConfig()
+	}
+
+	return config
+}
+
+func setConfig(config Config) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println("Error getting home directory:", err)
+		return
+	}
+
+	configPath := filepath.Join(homeDir, ".pls_config")
+
+	// Convert Config struct to JSON
+	configJSON, err := json.Marshal(config)
+	if err != nil {
+		fmt.Println("Error marshalling config:", err)
+		return
+	}
+
+	// Write JSON to file
+	err = os.WriteFile(configPath, configJSON, 0644)
+	if err != nil {
+		fmt.Println("Error writing config file:", err)
+	}
 }
 
 func makeQuery(systemPrompt string, userPrompt string, print bool, history *[]string) string {
@@ -121,7 +194,7 @@ func makeQuery(systemPrompt string, userPrompt string, print bool, history *[]st
 		historyMessages := *history
 		for index, message := range historyMessages {
 			role := "user"
-			if index % 2 == 1 {
+			if index%2 == 1 {
 				role = "assistant"
 			}
 			messages = append(messages, Message{
@@ -136,14 +209,14 @@ func makeQuery(systemPrompt string, userPrompt string, print bool, history *[]st
 		Content: userPrompt,
 	})
 
-	
+	config := getConfig()
 
 	requestBody := ChatCompletionRequest{
 		Messages:    messages,
-		Model:       "llama3-70b-8192",
-		Temperature: 1,
-		MaxTokens:   1024,
-		TopP:        1,
+		Model:       config.Model,
+		Temperature: config.Temperature,
+		MaxTokens:   config.MaxTokens,
+		TopP:        config.TopP,
 		Stream:      true,
 		Stop:        nil,
 	}
@@ -237,7 +310,6 @@ func getTerminalWidth() int {
 	return width
 }
 
-
 func wrapText(text string, lineWidth int) string {
 	paragraphs := strings.Split(text, "\n")
 	var wrappedParagraphs []string
@@ -275,7 +347,7 @@ func wrapText(text string, lineWidth int) string {
 		allSingleBackticks := strings.ReplaceAll(wrappedParagraphs[i], "```", "`")
 		codeSections := strings.Split(allSingleBackticks, "`")
 		for j := 0; j < len(codeSections); j += 1 {
-			if j % 2 == 1 {
+			if j%2 == 1 {
 				styledText += (codeStart + codeSections[j] + codeEnd)
 			} else {
 				styledText += codeSections[j]
