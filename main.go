@@ -35,29 +35,23 @@ var rootCmd = &cobra.Command{
 			runCheck()
 		} else if action == "commit" {
 			runCommit()
-		} else if action == "explain" {
-			runExplain(query)
-		} else if action == "duh" {
-			runDuh(query)
-		} else if action == "login" {
-			addApiKey()
-		} else if action == "logout" {
-			removeApiKey()
-		} else if action == "help" {
-			printHelp(true)
-		} else if action == "clear" {
+		} else if action == "clear" { //clear history
 			clearHistory()
-		} else if action == "update-pls" {
+		} else if action == "login" { //login to pls
+			addApiKey()
+		} else if action == "logout" { //logout of pls
+			removeApiKey()
+		} else if action == "help" { //print help
+			printHelp(true)
+		} else if action == "update-pls" { //update pls
 			updatePls()
-		} else if action == "set" {
+		} else if action == "set" { //sets the model or prompt
 			setConfigProperty(query)
-		} else if action == "investigate" {
-			runInvestigate(query)
-		} else if strings.TrimSpace(action) == "" {
+		} else if strings.TrimSpace(action) == "" { //unknown command
 			fmt.Println("")
 			fmt.Println("\033[31mUnknown command:", action+"\033[0m")
 			printHelp(false)
-		} else {
+		} else { //run the command
 			fullString := strings.Join(args, " ")
 			runCmd(fullString)
 		}
@@ -93,62 +87,6 @@ func setConfigProperty(query string) {
 	setConfig(config)
 }
 
-func runWrite(query string) {
-	code, didAnswer := answerQuestion(query)
-	saveLastOutput(query + "<!>write<!>" + code)
-	if didAnswer {
-		fmt.Println("\033[3mRun \033[1mpls explain\033[0m\033[3m to elaborate or \033[1mpls explain 'question'\033[0m\033[3m to ask a follow up\033[0m")
-		fmt.Println("")
-	} else {
-		fmt.Println("\033[3mAnswer through \033[1mpls duh 'response'\033[0m")
-		fmt.Println("")
-	}
-	postProcess("write", code)
-}
-
-func runInvestigate(query string) {
-	fmt.Println("")
-	fmt.Println("\033[33mNot available yet")
-	fmt.Println("")
-	postProcess("investigate", "Investigating...")
-}
-
-func runDuh(clarification string) {
-	input, action, output := getLastOutput()
-	if input == "" {
-		fmt.Println("No previous input to clarify.")
-		return
-	}
-	if action == "cmd" {
-		ls, pwd, branch := getCommandOutputs()
-		history := []string{input, output}
-		response, didAnswer := createShellCommand(clarification, ls, pwd, branch, true, &history)
-		if didAnswer {
-			saveLastOutput(input + "<!>cmd<!>" + response)
-		}
-		postProcess(action, response)
-	}
-
-}
-
-func runExplain(query string) {
-	input, action, output := getLastOutput()
-	var response string
-	if action == "cmd" {
-		response = explainEachLine(output, query)
-	} else if action == "check" {
-		response = followUp(input, action, output, query)
-	} else if action == "explain" {
-		response = followUp(input, action, output, query)
-	} else {
-		runWrite(query)
-		return
-	}
-	fmt.Println("")
-	saveLastOutput(query + "<!>explain<!>" + response)
-	postProcess(action, response)
-}
-
 func runCheck() {
 	cmd := exec.Command("git", "diff")
 	output, err := cmd.Output()
@@ -162,6 +100,7 @@ func runCheck() {
 	}
 	answer := analyzeDiff(diff)
 	saveLastOutput(diff + "<!>check<!>" + answer)
+	//ask if they want to commit
 	postProcess("check", answer)
 }
 

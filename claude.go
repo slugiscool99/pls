@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/charmbracelet/glamour"
 	"golang.org/x/term"
 )
 
@@ -18,14 +19,22 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-type ChatCompletionRequest struct {
-	Messages    []Message `json:"messages"`
+type AnthropicRequest struct {
 	Model       string    `json:"model"`
-	Temperature float64   `json:"temperature"`
 	MaxTokens   int       `json:"max_tokens"`
-	TopP        float64   `json:"top_p"`
+	Temperature float64   `json:"temperature"`
+	Messages    []Message `json:"messages"`
+	System      string    `json:"system,omitempty"`
 	Stream      bool      `json:"stream"`
-	Stop        *string   `json:"stop"`
+}
+
+type AnthropicStreamResponse struct {
+	Type  string `json:"type"`
+	Index int    `json:"index,omitempty"`
+	Delta struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"delta,omitempty"`
 }
 
 type Config struct {
@@ -70,7 +79,7 @@ func createShellCommand(task string, lsOutput string, pwdOutput string, currentB
 func answerQuestion(question string) (string, bool) {
 	// followUp := determineClarity(question)
 	// if followUp == "" {
-	systemPrompt := "Answer the question as concisely as possible, without markdown. If the user is asking for code, output ONLY code. Do not use markdown except for backticks and asterisks."
+	systemPrompt := "Answer the question as concisely as possible. You can use markdown formatting including headers, lists, code blocks, and emphasis to make your response clear and well-structured."
 	userPrompt := question
 	return makeQuery(systemPrompt, userPrompt, true, nil), true
 	// } else {
@@ -83,7 +92,7 @@ func answerQuestion(question string) (string, bool) {
 
 // pls explain
 func explainEachLine(content string, prompt string) string {
-	systemPrompt := "You are an expert at explaining shell commands, code, regex, and other programming syntax. You never use markdown other than backticks. "
+	systemPrompt := "You are an expert at explaining shell commands, code, regex, and other programming syntax. You can use markdown formatting to make your explanations clear and well-structured. "
 	if prompt == "" {
 		systemPrompt += "The user will provide an input, explain what each line does in no more than 1 sentence. Output {line}: {your explaination} for each line. Do not output any other text."
 	} else {
@@ -105,7 +114,7 @@ func followUp(input string, action string, output string, userPrompt string) str
 		systemPrompt = "You are an expert at analyzing git diffs for issues."
 	}
 
-	systemPrompt += "Answer the user's question clearly but as concisely as possible. Do not use markdown except for backticks and asterisks."
+	systemPrompt += "Answer the user's question clearly but as concisely as possible. You can use markdown formatting to make your response clear and well-structured."
 
 	history := []string{input, action, output}
 
@@ -114,7 +123,7 @@ func followUp(input string, action string, output string, userPrompt string) str
 
 // pls check
 func analyzeDiff(diff string) string {
-	systemPrompt := "You are an expert at analyzing git diffs for issues. Output any issues found in the diff. If no issues are found, output 'No issues found'. Do not use markdown except for backticks and asterisks. Only raise glaring issues that could cause real problems, not any nitpicky issues."
+	systemPrompt := "You are an expert at analyzing git diffs for issues. Output any issues found in the diff. If no issues are found, output 'No issues found'. You can use markdown formatting to make your response clear and well-structured. Only raise glaring issues that could cause real problems, not any nitpicky issues. Show lines prepended with + as additions and lines prepended with - as deletions."
 	userPrompt := diff
 	return makeQuery(systemPrompt, userPrompt, true, nil)
 }
@@ -128,9 +137,9 @@ func generateCommitMessage(diff string) string {
 
 func defaultConfig() Config {
 	return Config{
-		Model:       "llama3-70b-8192",
+		Model:       "claude-sonnet-4-20250514",
 		Prompt:      "",
-		Url:         "https://api.groq.com/openai/v1/chat/completions",
+		Url:         "https://api.anthropic.com/v1/messages",
 		Temperature: 0.7,
 		MaxTokens:   1000,
 		TopP:        0.9,
@@ -183,12 +192,7 @@ func setConfig(config Config) {
 }
 
 func makeQuery(systemPrompt string, userPrompt string, print bool, history *[]string) string {
-	messages := []Message{
-		{
-			Role:    "system",
-			Content: systemPrompt,
-		},
-	}
+	messages := []Message{}
 
 	if history != nil {
 		historyMessages := *history
@@ -211,14 +215,13 @@ func makeQuery(systemPrompt string, userPrompt string, print bool, history *[]st
 
 	config := getConfig()
 
-	requestBody := ChatCompletionRequest{
-		Messages:    messages,
+	requestBody := AnthropicRequest{
 		Model:       config.Model,
-		Temperature: config.Temperature,
 		MaxTokens:   config.MaxTokens,
-		TopP:        config.TopP,
+		Temperature: config.Temperature,
+		Messages:    messages,
+		System:      systemPrompt,
 		Stream:      true,
-		Stop:        nil,
 	}
 
 	requestBodyBytes, err := json.Marshal(requestBody)
@@ -227,14 +230,15 @@ func makeQuery(systemPrompt string, userPrompt string, print bool, history *[]st
 		return ""
 	}
 
-	req, err := http.NewRequest("POST", "https://api.groq.com/openai/v1/chat/completions", bytes.NewBuffer(requestBodyBytes))
+	req, err := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bytes.NewBuffer(requestBodyBytes))
 	if err != nil {
 		fmt.Println("Error creating request:", err)
 		return ""
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey())
+	req.Header.Set("x-api-key", apiKey())
+	req.Header.Set("anthropic-version", "2023-06-01")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -244,62 +248,181 @@ func makeQuery(systemPrompt string, userPrompt string, print bool, history *[]st
 	}
 	defer resp.Body.Close()
 
-	if print {
-		fmt.Println("")
+	// Check for HTTP errors
+	if resp.StatusCode != 200 {
+		// Read the error response
+		var errorBody bytes.Buffer
+		errorBody.ReadFrom(resp.Body)
+		
+		var errorResponse map[string]interface{}
+		if err := json.Unmarshal(errorBody.Bytes(), &errorResponse); err == nil {
+			if errorData, ok := errorResponse["error"].(map[string]interface{}); ok {
+				if errorType, ok := errorData["type"].(string); ok {
+					if message, ok := errorData["message"].(string); ok {
+						switch errorType {
+						case "insufficient_credit_error":
+							fmt.Printf("❌ Insufficient credits: %s\n", message)
+							fmt.Println("💳 Please add credits to your Anthropic account at https://console.anthropic.com/settings/billing")
+						case "rate_limit_error":
+							fmt.Printf("⏰ Rate limit exceeded: %s\n", message)
+							fmt.Println("Please wait a moment and try again.")
+						case "authentication_error":
+							fmt.Printf("🔑 Authentication failed: %s\n", message)
+							fmt.Println("Please run 'pls login' to set your API key.")
+						case "permission_error":
+							fmt.Printf("🚫 Permission denied: %s\n", message)
+						case "overloaded_error":
+							fmt.Printf("🔥 Service overloaded: %s\n", message)
+							fmt.Println("Please try again in a few moments.")
+						default:
+							fmt.Printf("❌ API Error (%s): %s\n", errorType, message)
+						}
+					} else {
+						fmt.Printf("❌ API Error: %s\n", errorType)
+					}
+				} else {
+					fmt.Printf("❌ HTTP %d: %s\n", resp.StatusCode, errorBody.String())
+				}
+			} else {
+				fmt.Printf("❌ HTTP %d: %s\n", resp.StatusCode, errorBody.String())
+			}
+		} else {
+			fmt.Printf("❌ HTTP %d: %s\n", resp.StatusCode, errorBody.String())
+		}
+		return ""
 	}
 
-	var accumulatedText string
 	var fullText string
-	terminalWidth := getTerminalWidth() - 40
+	var spinner = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	spinnerIndex := 0
+	chunkCount := 0
+	
+	if print {
+		fmt.Print("Thinking")
+	}
+	
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line == "data: [DONE]" {
-			break
-		}
+		
+		// Handle Anthropic streaming format
+		if strings.HasPrefix(line, "event: ") || strings.HasPrefix(line, "data: ") {
+			if strings.HasPrefix(line, "data: ") {
+				data := line[6:]
+				if data == "[DONE]" {
+					break
+				}
 
-		// Print each data line received
-		if len(line) > 6 && line[:6] == "data: " {
-			data := line[6:]
-			var chunk map[string]interface{}
-			if err := json.Unmarshal([]byte(data), &chunk); err == nil {
-				choices := chunk["choices"].([]interface{})
-				if len(choices) > 0 {
-					delta := choices[0].(map[string]interface{})["delta"]
-					if content, ok := delta.(map[string]interface{})["content"]; ok {
-						accumulatedText += content.(string)
-						fullText += content.(string)
-
-						// Check if we have a complete paragraph
-						if strings.Contains(accumulatedText, "\n\n") {
-							paragraphs := strings.Split(accumulatedText, "\n\n")
-							for i := 0; i < len(paragraphs)-1; i++ {
-								if print {
-									fmt.Println(wrapText(paragraphs[i], terminalWidth))
-									fmt.Println() // Add an empty line between paragraphs
+				var chunk map[string]interface{}
+				if err := json.Unmarshal([]byte(data), &chunk); err == nil {
+					if chunkType, ok := chunk["type"].(string); ok {
+						if chunkType == "error" {
+							// Handle streaming errors
+							if errorData, ok := chunk["error"].(map[string]interface{}); ok {
+								if errorType, ok := errorData["type"].(string); ok {
+									if message, ok := errorData["message"].(string); ok {
+										switch errorType {
+										case "overloaded_error":
+											fmt.Printf("\n🔥 Service overloaded: %s\n", message)
+											fmt.Println("Please try again in a few moments.")
+										case "rate_limit_error":
+											fmt.Printf("\n⏰ Rate limit exceeded: %s\n", message)
+											fmt.Println("Please wait a moment and try again.")
+										default:
+											fmt.Printf("\n❌ Stream Error (%s): %s\n", errorType, message)
+										}
+									} else {
+										fmt.Printf("\n❌ Stream Error: %s\n", errorType)
+									}
 								}
 							}
-							accumulatedText = paragraphs[len(paragraphs)-1]
+							return ""
+						} else if chunkType == "content_block_delta" {
+							if delta, ok := chunk["delta"].(map[string]interface{}); ok {
+								if deltaType, ok := delta["type"].(string); ok && deltaType == "text_delta" {
+									if text, ok := delta["text"].(string); ok {
+										fullText += text
+										chunkCount++
+										
+										// Show loading indicator every few chunks  
+										if print && chunkCount%2 == 0 {
+											fmt.Printf("\r%s %s", spinner[spinnerIndex], "Thinking")
+											spinnerIndex = (spinnerIndex + 1) % len(spinner)
+										}
+									}
+								}
+							}
 						}
 					}
 				}
 			}
 		}
 	}
-
-	if accumulatedText != "" && print {
-		fmt.Print(wrapText(accumulatedText, terminalWidth))
-	}
-
+	
+	// Clear the loading indicator
 	if print {
-		fmt.Println("")
-		fmt.Println("")
+		fmt.Print("\r\033[K") // Clear the line
 	}
+
 	if err := scanner.Err(); err != nil {
 		fmt.Println("Error reading response body:", err)
 	}
 
-	return strings.ReplaceAll(fullText, "`", "")
+	// If we're printing, render the markdown properly
+	if print && fullText != "" {
+		rendered, err := renderMarkdown(fullText)
+		if err != nil {
+			// Fallback to simple text wrapping if glamour fails
+			terminalWidth := getTerminalWidth() - 4
+			fmt.Print(wrapText(fullText, terminalWidth))
+		} else {
+			fmt.Print(rendered)
+		}
+		fmt.Println("")
+	}
+
+	return fullText
+}
+
+func renderMarkdown(text string) (string, error) {
+	// Create a glamour renderer with auto-detection of terminal theme
+	r, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(getTerminalWidth()-4), // Leave some margin
+	)
+	if err != nil {
+		return "", err
+	}
+	
+	// Render the markdown first
+	rendered, err := r.Render(text)
+	if err != nil {
+		return "", err
+	}
+	
+	// Then apply git diff coloring to the rendered output
+	coloredText := applyDiffColoring(rendered)
+	
+	return coloredText, nil
+}
+
+func applyDiffColoring(text string) string {
+	lines := strings.Split(text, "\n")
+	var result []string
+	
+	for _, line := range lines {
+		if strings.HasPrefix(line, "+") {
+			// Green background with black text for additions
+			result = append(result, "\033[42m\033[30m"+line+"\033[0m")
+		} else if strings.HasPrefix(line, "-") {
+			// Red background with white text for deletions
+			result = append(result, "\033[41m\033[37m"+line+"\033[0m")
+		} else {
+			result = append(result, line)
+		}
+	}
+	
+	return strings.Join(result, "\n")
 }
 
 func getTerminalWidth() int {
