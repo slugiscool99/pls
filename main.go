@@ -158,9 +158,17 @@ func runCommit() {
 		fmt.Println("Failed to generate commit message")
 		return
 	}
-	
-	fmt.Printf("Generated commit message: \033[32m%s\033[0m\n", commitMessage)
-	
+	fmt.Println("")
+	fmt.Println("┌─────────────────────────────────────────────────────────────────────────────────┐")
+	fmt.Printf("│ \033[32m%s\033[0m", commitMessage)
+	// Add padding to align the right border
+	padding := 79 - len(commitMessage)
+	for i := 0; i < padding; i++ {
+		fmt.Print(" ")
+	}
+	fmt.Println(" │")
+	fmt.Println("└─────────────────────────────────────────────────────────────────────────────────┘")
+	fmt.Println("")
 	// Execute git commit with the generated message
 	commitCmd := exec.Command("git", "commit", "-m", commitMessage)
 	commitCmd.Stdout = os.Stdout
