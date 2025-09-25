@@ -21,3 +21,5 @@
 go.work
 go.work.sum
 *.tar.gz
+
+.DS_Store
