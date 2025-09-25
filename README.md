@@ -1,6 +1,6 @@
 # pls
 
-Run AI directly in your shell. No bells and whistles.
+Run AI queries directly in your shell using Groq.
 
 ## Install
 
