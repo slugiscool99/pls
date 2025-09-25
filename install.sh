@@ -25,17 +25,28 @@ get_rc_file() {
     fi
 }
 
-if [ "$EUID" -ne 0 ]; then
-    echo "This script requires root privileges. Running with sudo..."
-    exec sudo bash "$0" "$@"
-    exit $?
-fi
-
 if [ ! -f "$BINARY_PATH" ]; then
     echo "Error: pls binary not found at $BINARY_PATH"
     exit 1
 fi
 
+if [ "$EUID" -ne 0 ]; then
+    echo "This script requires root privileges. Running with sudo..."
+    if sudo bash "$0" "$@"; then
+        # After successful installation, source the RC file in user's shell
+        RC_FILE=$(get_rc_file)
+        if [ -n "$RC_FILE" ] && [ -f "$RC_FILE" ]; then
+            echo "Reloading shell configuration..."
+            # Source the RC file in a subshell to avoid affecting the current script
+            (source "$RC_FILE")
+        fi
+        echo "Installation complete! You can now use 'pls' immediately."
+        echo "Run 'pls help' for instructions."
+    fi
+    exit $?
+fi
+
+# Root installation part
 echo "Copying pls to ${INSTALL_DIR}..."
 if ! cp "$BINARY_PATH" "$INSTALL_DIR/pls"; then
     echo "Failed to copy pls to $INSTALL_DIR"
@@ -54,6 +65,4 @@ else
     echo "Couldn't detect shell. Please add $INSTALL_DIR to your PATH manually."
 fi
 
-export PATH="$PATH:$INSTALL_DIR"
-
-echo "Installation complete. Run 'pls help' for instructions. If running 'pls' does not work, restart your shell."
+echo "Installation completed successfully."
