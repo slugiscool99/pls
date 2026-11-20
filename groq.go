@@ -50,14 +50,17 @@ type Config struct {
 // }
 
 // pls cmd
-func createShellCommand(task string, lsOutput string, pwdOutput string, currentBranch string, print bool, history *[]string) (string, bool) {
+func createShellCommand(task string, workingContext string, print bool, history *[]string) (string, bool) {
 	// followUp := ""
 	// if history == nil {
 	// 	followUp = determineClarity(task)
 	// }
 	// if followUp == "" {
-	systemPrompt := "You are an expert at writing macos compatible shell commands from a user's instructions. Output ONLY line separated commands that can be pasted directly into a terminal. Commands must be executed directly from the terminal without opening any interactive interfaces, allowing everything to be executed seamlessly in a single step."
+	systemPrompt := "You are an expert at writing macos compatible shell commands from a user's instructions. Output ONLY line separated commands that can be pasted directly into a terminal. Commands must be executed directly from the terminal without opening any interactive interfaces, allowing everything to be executed seamlessly in a single step. Use the provided context about the user's current directory to tailor commands to their project (for example, its build tools and package manager), but don't mention the context in your output."
 	userPrompt := task
+	if workingContext != "" {
+		userPrompt = "Context about the current directory:\n" + workingContext + "\n\nTask: " + task
+	}
 	return makeQuery(systemPrompt, userPrompt, print, history), true
 	// } else {
 	// 	fmt.Println("")

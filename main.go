@@ -65,8 +65,7 @@ var rootCmd = &cobra.Command{
 }
 
 func runCmd(query string) {
-	ls, pwd, branch := getCommandOutputs()
-	commands, didAnswer := createShellCommand(query, ls, pwd, branch, true, nil)
+	commands, didAnswer := createShellCommand(query, getWorkingContext(), true, nil)
 	saveLastOutput(query + "<!>cmd<!>" + commands)
 	if didAnswer {
 		fmt.Println("\033[3mRun \033[1mpls explain\033[0m\033[3m to describe each step or \033[1mpls explain 'question'\033[0m\033[3m to ask a follow up\033[0m")
@@ -120,9 +119,9 @@ func runDuh(clarification string) {
 		return
 	}
 	if action == "cmd" {
-		ls, pwd, branch := getCommandOutputs()
+
 		history := []string{input, output}
-		response, didAnswer := createShellCommand(clarification, ls, pwd, branch, true, &history)
+		response, didAnswer := createShellCommand(clarification, getWorkingContext(), true, &history)
 		if didAnswer {
 			saveLastOutput(input + "<!>cmd<!>" + response)
 		}
@@ -256,7 +255,7 @@ func postProcess(action string, output string) {
 	data := map[string]string{
 		"action":  action,
 		"mac":     getMacAddr(),
-		"version": "0.0.16",
+		"version": "0.0.17",
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
@@ -332,33 +331,6 @@ func getLastOutput() (string, string, string) {
 	} else {
 		return "", "", ""
 	}
-}
-
-func getCommandOutputs() (string, string, string) {
-	var lsCommaSeparated, pwdNoLines, branchName string
-
-	ls := exec.Command("ls")
-	output, err := ls.Output()
-	if err != nil {
-		lsCommaSeparated = ""
-	} else {
-		lsCommaSeparated = strings.Join(strings.Split(string(output), "\n"), ", ")
-	}
-	pwd := exec.Command("pwd")
-	pwdOutput, err := pwd.Output()
-	if err != nil {
-		pwdNoLines = ""
-	} else {
-		pwdNoLines = strings.ReplaceAll(string(pwdOutput), "\n", "")
-	}
-
-	branch := exec.Command("git", "branch", "--show-current")
-	branchOutput, err := branch.Output()
-	if err != nil {
-		return pwdNoLines, lsCommaSeparated, ""
-	}
-	branchName = strings.ReplaceAll(string(branchOutput), "\n", "")
-	return pwdNoLines, lsCommaSeparated, branchName
 }
 
 func showProgressWheel() {
