@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -126,13 +127,21 @@ func generateCommitMessage(diff string) string {
 	return makeQuery(systemPrompt, userPrompt, false, nil)
 }
 
+const defaultModel = "openai/gpt-oss-120b"
+
+// Models Groq has shut down. Configs saved by older versions may still
+// reference them, which makes every request fail.
+var retiredModels = map[string]bool{
+	"llama3-70b-8192": true,
+}
+
 func defaultConfig() Config {
 	return Config{
-		Model:       "llama3-70b-8192",
+		Model:       defaultModel,
 		Prompt:      "",
 		Url:         "https://api.groq.com/openai/v1/chat/completions",
 		Temperature: 0.7,
-		MaxTokens:   1000,
+		MaxTokens:   4000,
 		TopP:        0.9,
 	}
 }
@@ -154,6 +163,14 @@ func getConfig() Config {
 	err = json.Unmarshal(data, &config)
 	if err != nil {
 		return defaultConfig()
+	}
+
+	if config.Model == "" || retiredModels[config.Model] {
+		config.Model = defaultModel
+		// gpt-oss spends tokens on reasoning before answering.
+		if config.MaxTokens < 4000 {
+			config.MaxTokens = 4000
+		}
 	}
 
 	return config
@@ -243,6 +260,11 @@ func makeQuery(systemPrompt string, userPrompt string, print bool, history *[]st
 		return ""
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Println(apiErrorMessage(resp))
+		return ""
+	}
 
 	if print {
 		fmt.Println("")
@@ -357,4 +379,22 @@ func wrapText(text string, lineWidth int) string {
 	}
 
 	return strings.Join(wrappedParagraphs, "\n")
+}
+
+// apiErrorMessage turns a non-200 Groq response into a readable message.
+func apiErrorMessage(resp *http.Response) string {
+	body, _ := io.ReadAll(resp.Body)
+	var parsed struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	msg := strings.TrimSpace(string(body))
+	if json.Unmarshal(body, &parsed) == nil && parsed.Error.Message != "" {
+		msg = parsed.Error.Message
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return "Error: your Groq API key was rejected. Run 'pls login' to set a new one."
+	}
+	return fmt.Sprintf("Error from Groq (%d): %s", resp.StatusCode, msg)
 }

@@ -256,7 +256,7 @@ func postProcess(action string, output string) {
 	data := map[string]string{
 		"action":  action,
 		"mac":     getMacAddr(),
-		"version": "0.0.15",
+		"version": "0.0.16",
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
